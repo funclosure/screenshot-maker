@@ -1,0 +1,31 @@
+{
+  "bgMode": "gradient",
+  "gradA": "#0f2a43",
+  "gradB": "#3b6ea5",
+  "gradAngle": 160,
+  "title": "Your money, in motion",
+  "subtitle": "Track every account in one place - clearly, instantly.",
+  "titleSize": 84,
+  "subtitleSize": 42,
+  "textColor": "#f4f6fb",
+  "align": "center",
+  "phoneOffset": {
+    "x": 0,
+    "y": 0
+  },
+  "phoneScale": 1,
+  "rotation": {
+    "x": -0.14,
+    "y": 0.17
+  },
+  "displayRect": {
+    "x": 0.0184,
+    "y": 0,
+    "width": 0.9631,
+    "height": 1
+  },
+  "modelAppearance": {
+    "showFrontCamera": false,
+    "reflection": 0.08
+  }
+}

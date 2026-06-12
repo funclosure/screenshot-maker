@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Screenshot Stage — iOS marketing shot composer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Bricolage+Grotesque:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* ============ Tokens ============ */
+  :root {
+    --bg: #0b0b0d;
+    --panel: #131316;
+    --panel-edge: #232329;
+    --well: #0e0e11;
+    --backdrop: #0b0b0d;
+    --hairline: #232329;
+    --hairline-2: #2e2e36;
+    --ink: #edeae3;
+    --ink-dim: #908d86;
+    --ink-faint: #5a5851;
+    --accent: #f5a524;          /* signal amber */
+    --accent-soft: rgba(245, 165, 36, 0.16);
+    --accent-ink: #1a1300;
+    --ok: #74d6a4;
+    --radius-s: 8px;
+    --radius-m: 12px;
+    --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    --font-display: "Bricolage Grotesque", "Avenir Next", sans-serif;
+    --font-label: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font-ui);
+    background: var(--backdrop);
+    color: var(--ink);
+    display: flex;
+    overflow: hidden;
+  }
+
+  ::selection { background: var(--accent-soft); }
+
+  /* ============ Sidebar: instrument console ============ */
+  #sidebar {
+    width: 324px;
+    flex: 0 0 324px;
+    height: 100%;
+    overflow-y: auto;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px),
+      linear-gradient(180deg, #16161a 0%, #111114 100%);
+    border-right: 1px solid var(--panel-edge);
+    box-shadow: inset -1px 0 0 rgba(255,255,255,0.03);
+    padding: 22px 20px 36px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--hairline-2) transparent;
+    counter-reset: section;
+  }
+  #sidebar::-webkit-scrollbar { width: 8px; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--hairline-2); border-radius: 4px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--hairline);
+    margin-bottom: 22px;
+  }
+  .brand h1 {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: 0.015em;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .brand h1::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(245,165,36,0.7);
+    animation: rec-pulse 3.2s ease-in-out infinite;
+  }
+  @keyframes rec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+  .brand span {
+    margin-left: auto;
+    font-family: var(--font-label);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--ink-dim);
+    letter-spacing: 0.08em;
+    border: 1px solid var(--hairline-2);
+    border-radius: 4px;
+    padding: 3px 7px;
+    background: var(--well);
+  }
+
+  fieldset {
+    border: none;
+    margin-bottom: 26px;
+  }
+  legend {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--font-label);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-bottom: 13px;
+  }
+  legend::before {
+    counter-increment: section;
+    content: counter(section, decimal-leading-zero);
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+  legend::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--hairline-2), transparent);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 11px;
+  }
+  .row label {
+    font-family: var(--font-label);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    color: var(--ink-dim);
+    flex: 0 0 72px;
+  }
+  .row .grow { flex: 1; }
+  .row label.check {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-dim);
+  }
+
+  /* Segmented control: instrument toggle */
+  .seg {
+    display: flex;
+    background: var(--well);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-s);
+    padding: 3px;
+    margin-bottom: 13px;
+  }
+  .seg button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-family: var(--font-label);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 7px 0;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .seg button:hover { color: var(--ink-dim); }
+  .seg button[aria-pressed="true"] {
+    background: #1d1d22;
+    color: var(--accent);
+    box-shadow: inset 0 -2px 0 var(--accent), 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* Inputs */
+  input[type="text"] {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-s);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    padding: 8px 10px;
+    transition: border-color 0.15s;
+  }
+  input[type="text"]:hover { border-color: var(--hairline-2); }
+  input[type="text"]:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--hairline-2);
+    border-radius: 50%;
+    background: var(--well);
+    padding: 3px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  input[type="color"]:hover { border-color: var(--ink-faint); transform: scale(1.06); }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--hairline-2);
+    border-radius: 1px;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 9px;
+    height: 17px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #e9e6de 0%, #c9c5bc 45%, #8f8c84 50%, #c9c5bc 55%, #b4b0a7 100%);
+    border: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.55), inset 0 0 0 0.5px rgba(0,0,0,0.35);
+    margin-top: 0;
+    transition: transform 0.12s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scaleY(1.12); }
+  input[type="range"]::-moz-range-thumb {
+    width: 9px;
+    height: 17px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #e9e6de, #b4b0a7);
+    border: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.55);
+  }
+  input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+  .val {
+    font-family: var(--font-label);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    flex: 0 0 44px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* File input: viewfinder load bay */
+  .file-btn {
+    position: relative;
+    display: block;
+    width: 100%;
+    text-align: center;
+    background: var(--well);
+    border: 1px dashed var(--hairline-2);
+    border-radius: 2px;
+    color: var(--ink-dim);
+    font-family: var(--font-label);
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    padding: 12px 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .file-btn::before, .file-btn::after {
+    content: "";
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    border-style: solid;
+    border-color: var(--ink-faint);
+    transition: border-color 0.15s;
+  }
+  .file-btn::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+  .file-btn::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+  .file-btn:hover { color: var(--ink); background: #121217; }
+  .file-btn:hover::before, .file-btn:hover::after { border-color: var(--accent); }
+  .file-btn.loaded { border-style: solid; border-color: var(--hairline-2); color: var(--ok); }
+  .file-btn.loaded::before, .file-btn.loaded::after { border-color: var(--ok); }
+  .file-btn input { display: none; }
+
+  .mode-pane { display: none; }
+  .mode-pane.active { display: block; }
+
+  /* Scene JSON editor */
+  #jsonEditor {
+    width: 100%;
+    min-height: 200px;
+    resize: vertical;
+    background: var(--well);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-s);
+    color: var(--ink);
+    font-family: var(--font-label);
+    font-size: 10.5px;
+    line-height: 1.55;
+    padding: 10px;
+    margin-bottom: 10px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  #jsonEditor:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .json-actions { gap: 8px; }
+  .json-actions .small-btn { margin-bottom: 0; flex: 1; }
+  #jsonApply { color: var(--accent); border-color: rgba(245,165,36,0.45); }
+  #jsonApply:hover { color: var(--accent); border-color: var(--accent); }
+  #jsonError {
+    font-family: var(--font-label);
+    font-size: 10px;
+    color: #ef6a5a;
+    line-height: 1.5;
+    margin-top: 8px;
+  }
+
+  /* Shutter: export button */
+  #exportBtn {
+    width: 100%;
+    background: linear-gradient(180deg, #ffb83d 0%, var(--accent) 60%, #e0941a 100%);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: var(--radius-m);
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    padding: 13px;
+    cursor: pointer;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.4),
+      0 1px 0 rgba(0,0,0,0.5),
+      0 6px 20px rgba(245,165,36,0.22);
+    transition: filter 0.15s, transform 0.12s, box-shadow 0.15s;
+  }
+  #exportBtn:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 2px 1px rgba(0,0,0,0.5), 0 9px 24px rgba(245,165,36,0.3); }
+  #exportBtn:active { transform: translateY(0); filter: brightness(0.97); }
+  #exportBtn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .small-btn {
+    width: 100%;
+    background: transparent;
+    color: var(--ink-dim);
+    border: 1px solid var(--hairline-2);
+    border-radius: var(--radius-s);
+    font-family: var(--font-label);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 8px 10px;
+    cursor: pointer;
+    margin-bottom: 12px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .small-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+  .small-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .export-note {
+    font-family: var(--font-label);
+    font-size: 10px;
+    color: var(--ink-faint);
+    line-height: 1.6;
+    margin-top: 12px;
+  }
+
+  /* ============ Preview area ============ */
+  #previewArea {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    position: relative;
+    background:
+      radial-gradient(ellipse 75% 55% at 50% 0%, rgba(245,165,36,0.045) 0%, transparent 55%),
+      radial-gradient(circle, rgba(255,255,255,0.022) 1px, transparent 1px) 0 0 / 26px 26px,
+      radial-gradient(ellipse 120% 90% at 50% 45%, #111115 0%, var(--backdrop) 100%);
+  }
+
+  /* The stage: always 1290:2796, scaled to fit by JS */
+  #stage {
+    width: 1290px;
+    height: 2796px;
+    flex: 0 0 auto;
+    container-type: size;
+    position: relative;
+    overflow: hidden;
+    transform-origin: center center;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 40px 120px rgba(0,0,0,0.6);
+  }
+  body.exporting #stage { box-shadow: none; }
+
+  /* Perspective wrapper fills the stage */
+  #scene {
+    position: absolute;
+    inset: 0;
+    perspective: 1200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ---- Caption (title + subtitle) ---- */
+  #caption {
+    width: 84cqw;
+    margin-top: 11cqh;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  #titleEl {
+    font-family: "EB Garamond", Georgia, serif;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    line-height: 1.1;
+    overflow-wrap: break-word;
+  }
+  #subtitleEl {
+    margin-top: 2.2cqw;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.66;
+    overflow-wrap: break-word;
+  }
+
+  /* ---- Device ---- */
+  #deviceWrap {
+    margin-top: 7cqh;
+    position: relative;
+    transform-style: preserve-3d;
+  }
+
+  #phoneCanvas {
+    display: none;
+    /* Full stage width: gives the phone horizontal headroom when rolled on Z.
+       Height matches the old tight box (56cqw * 146.6/71.6), so the camera's
+       vertical framing — and the phone's on-screen size — are unchanged. */
+    width: 100cqw;
+    aspect-ratio: 1000 / 1147;
+    margin-inline: auto;
+    cursor: grab;
+    touch-action: none;
+    position: relative;
+    z-index: 1;
+  }
+  #phoneCanvas:active { cursor: grabbing; }
+  body.model-ready #phoneCanvas { display: block; }
+  body.model-ready #device { display: none; }
+
+  #device {
+    position: relative;
+    width: 56cqw;
+    aspect-ratio: 71.6 / 146.6;
+    border-radius: 8.6cqw;
+    transform-style: preserve-3d;
+    will-change: transform;
+    /* Titanium frame: layered borders via shadows */
+    background: linear-gradient(145deg, #4d4c4f, #2c2b2e 40%, #232225 60%, #4a494d);
+    box-shadow:
+      inset 0 0 0 0.18cqw rgba(255,255,255,0.35),
+      inset 0 0 0 0.55cqw #57565a,
+      inset 0 0 0 0.75cqw #1c1b1e,
+      0 0.3cqw 1.4cqw rgba(0,0,0,0.5);
+  }
+
+  /* Frame thickness: a slab pushed back in Z so edges read when tilted */
+  #device::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(145deg, #38373b, #1a191c);
+    transform: translateZ(-1.1cqw);
+  }
+  /* Mid layer to fill the gap between front and back slab */
+  #device::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #28272a;
+    transform: translateZ(-0.55cqw);
+  }
+
+  /* Side buttons */
+  .side-btn {
+    position: absolute;
+    width: 0.45cqw;
+    border-radius: 0.3cqw;
+    background: linear-gradient(90deg, #5b5a5e, #353438);
+    transform: translateZ(-0.4cqw);
+  }
+  .side-btn.action { left: -0.42cqw; top: 18%; height: 3.4%; }
+  .side-btn.vol-up  { left: -0.42cqw; top: 25%; height: 6%; }
+  .side-btn.vol-dn  { left: -0.42cqw; top: 32.5%; height: 6%; }
+  .side-btn.power   { right: -0.42cqw; left: auto; top: 27%; height: 9%;
+    background: linear-gradient(90deg, #353438, #5b5a5e); }
+
+  /* Screen */
+  #screen {
+    position: absolute;
+    inset: 1.15cqw;
+    border-radius: 7.4cqw;
+    overflow: hidden;
+    background: #000;
+    transform: translateZ(0.01cqw);
+  }
+  #screenImg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+  #screenPlaceholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.4cqw;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #2b2b31 0%, #151518 70%);
+    color: #8b8a92;
+    font-size: 2.2cqw;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  #screenPlaceholder svg { width: 5cqw; height: 5cqw; opacity: 0.6; }
+
+  /* Dynamic Island */
+  #island {
+    position: absolute;
+    top: 1.6cqw;
+    left: 50%;
+    transform: translateX(-50%) translateZ(0.02cqw);
+    width: 16.5cqw;
+    height: 4.9cqw;
+    border-radius: 2.45cqw;
+    background: #000;
+    box-shadow: inset 0 0 0.4cqw rgba(255,255,255,0.06);
+    z-index: 3;
+  }
+  #island::after { /* camera lens glint */
+    content: "";
+    position: absolute;
+    right: 1.2cqw;
+    top: 50%;
+    width: 1.7cqw;
+    height: 1.7cqw;
+    margin-top: -0.85cqw;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #2a3142 0%, #0a0c12 55%, #000 100%);
+  }
+
+  /* Specular highlight that follows the cursor */
+  #specular {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: radial-gradient(
+      38cqw circle at var(--hx, 50%) var(--hy, 30%),
+      rgba(255,255,255,0.22) 0%,
+      rgba(255,255,255,0.07) 28%,
+      rgba(255,255,255,0) 60%
+    );
+    mix-blend-mode: screen;
+  }
+  /* A faint static edge sheen so glass reads even at rest */
+  #screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 0.15cqw 0.3cqw rgba(255,255,255,0.12);
+    z-index: 4;
+  }
+
+  /* ============ Export mode ============ */
+  body.exporting #sidebar { display: none; }
+  body.exporting #previewArea { padding: 0; }
+
+  #exportBar {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    background: rgba(19,19,22,0.94);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--hairline-2);
+    border-radius: 999px;
+    padding: 10px 12px 10px 20px;
+    align-items: center;
+    gap: 14px;
+    font-family: var(--font-label);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--ink-dim);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  body.exporting #exportBar { display: flex; }
+  #exportBar strong { color: var(--accent); font-weight: 600; }
+  #exportBar button {
+    border: none;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    font-family: var(--font-label);
+    transition: filter 0.15s;
+  }
+  #exportBar button:hover { filter: brightness(1.1); }
+  #exitExport { background: #26262c; color: var(--ink); }
+  #downloadPng { background: var(--accent); color: var(--accent-ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    #device, #caption { transition: none !important; }
+  }
+
+  /* Narrow screens: stack panels */
+  @media (max-width: 760px) {
+    body { flex-direction: column; }
+    #sidebar { width: 100%; flex: 0 0 auto; max-height: 45%; border-right: none; border-bottom: 1px solid var(--panel-edge); }
+  }
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div class="brand">
+    <h1>Screenshot Stage</h1>
+    <span>1290 × 2796</span>
+  </div>
+
+  <fieldset>
+    <legend>Background</legend>
+    <div class="seg" role="group" aria-label="Background type">
+      <button type="button" data-bg="solid" aria-pressed="false">Solid</button>
+      <button type="button" data-bg="gradient" aria-pressed="true">Gradient</button>
+      <button type="button" data-bg="image" aria-pressed="false">Image</button>
+    </div>
+
+    <div class="mode-pane" id="pane-solid">
+      <div class="row">
+        <label for="solidColor">Color</label>
+        <input type="color" id="solidColor" value="#1d2440">
+      </div>
+    </div>
+
+    <div class="mode-pane active" id="pane-gradient">
+      <div class="row">
+        <label for="gradA">Stop 1</label>
+        <input type="color" id="gradA" value="#0f2a43">
+        <label for="gradB" style="flex:0 0 auto">Stop 2</label>
+        <input type="color" id="gradB" value="#3b6ea5">
+      </div>
+      <div class="row">
+        <label for="gradAngle">Angle</label>
+        <input type="range" id="gradAngle" class="grow" min="0" max="360" value="160">
+        <span class="val" id="gradAngleVal">160°</span>
+      </div>
+    </div>
+
+    <div class="mode-pane" id="pane-image">
+      <label class="file-btn" id="bgFileBtn">
+        Choose background image…
+        <input type="file" id="bgFile" accept="image/png,image/jpeg,image/webp">
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Screenshot</legend>
+    <label class="file-btn" id="shotFileBtn">
+      Upload app screenshot (PNG / JPG)…
+      <input type="file" id="shotFile" accept="image/png,image/jpeg">
+    </label>
+    <div class="row" style="margin-top:12px">
+      <label for="phoneScale">Scale</label>
+      <input type="range" id="phoneScale" class="grow" min="75" max="125" value="100">
+      <span class="val" id="phoneScaleVal">100%</span>
+    </div>
+    <div class="row">
+      <label for="phoneX">X</label>
+      <input type="range" id="phoneX" class="grow" min="-480" max="480" value="0">
+      <span class="val" id="phoneXVal">0</span>
+    </div>
+    <div class="row">
+      <label for="phoneY">Y</label>
+      <input type="range" id="phoneY" class="grow" min="-720" max="720" value="0">
+      <span class="val" id="phoneYVal">0</span>
+    </div>
+    <button id="resetPhonePlacement" type="button" class="small-btn">Reset phone placement</button>
+    <div class="row">
+      <label for="rotX">Rotation X</label>
+      <input type="range" id="rotX" class="grow" min="-31" max="25" value="-8">
+      <span class="val" id="rotXVal">-8°</span>
+    </div>
+    <div class="row">
+      <label for="rotY">Rotation Y</label>
+      <input type="range" id="rotY" class="grow" min="-37" max="37" value="10">
+      <span class="val" id="rotYVal">10°</span>
+    </div>
+    <div class="row">
+      <label for="rotZ">Rotation Z</label>
+      <input type="range" id="rotZ" class="grow" min="-45" max="45" value="0">
+      <span class="val" id="rotZVal">0°</span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Text</legend>
+    <div class="row">
+      <input type="text" id="titleInput" class="grow" value="Your money, in motion" aria-label="Title" placeholder="Title">
+    </div>
+    <div class="row">
+      <input type="text" id="subtitleInput" class="grow" value="Track every account in one place — clearly, instantly." aria-label="Subtitle" placeholder="Subtitle">
+    </div>
+    <div class="row">
+      <label for="titleSize">Title size</label>
+      <input type="range" id="titleSize" class="grow" min="40" max="140" value="84">
+      <span class="val" id="titleSizeVal">84</span>
+    </div>
+    <div class="row">
+      <label for="subtitleSize">Subtitle</label>
+      <input type="range" id="subtitleSize" class="grow" min="24" max="80" value="42">
+      <span class="val" id="subtitleSizeVal">42</span>
+    </div>
+    <div class="row">
+      <label for="textColor">Color</label>
+      <input type="color" id="textColor" value="#f4f6fb">
+      <div class="seg grow" role="group" aria-label="Text alignment" style="margin-bottom:0">
+        <button type="button" data-align="left" aria-pressed="false">Left</button>
+        <button type="button" data-align="center" aria-pressed="true">Center</button>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Scene JSON</legend>
+    <button id="jsonToggle" type="button" class="small-btn" aria-expanded="false">Edit scene JSON…</button>
+    <div id="jsonPane" hidden>
+      <textarea id="jsonEditor" spellcheck="false" aria-label="Scene JSON"></textarea>
+      <div class="row json-actions">
+        <button id="jsonApply" type="button" class="small-btn">Apply</button>
+        <button id="jsonCopy" type="button" class="small-btn">Copy</button>
+      </div>
+      <div id="jsonError" hidden></div>
+    </div>
+  </fieldset>
+
+  <button id="exportBtn" type="button">Enter export mode</button>
+  <p class="export-note">
+    Export mode renders the stage at exactly 1290 × 2796 px (6.7″ App Store size),
+    hides these controls, and levels the device. Screenshot it, use your browser's
+    “capture node” tool on the stage, or download a PNG directly.
+  </p>
+</aside>
+
+<main id="previewArea">
+  <div id="stage">
+    <div id="scene">
+      <div id="caption">
+        <div id="titleEl">Your money, in motion</div>
+        <div id="subtitleEl">Track every account in one place — clearly, instantly.</div>
+      </div>
+      <div id="deviceWrap">
+        <canvas id="phoneCanvas" aria-label="3D iPhone preview" data-model-ready="false" data-rotation="0,0"></canvas>
+        <div id="device">
+          <div class="side-btn action"></div>
+          <div class="side-btn vol-up"></div>
+          <div class="side-btn vol-dn"></div>
+          <div class="side-btn power"></div>
+          <div id="screen">
+            <div id="screenPlaceholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="3"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+              <span>Upload a screenshot</span>
+            </div>
+            <img id="screenImg" alt="App screenshot">
+            <div id="specular"></div>
+          </div>
+          <div id="island"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="exportBar">
+  <span><strong>Export mode</strong> · stage is true-size 1290 × 2796</span>
+  <button id="downloadPng" type="button">Download PNG</button>
+  <button id="exitExport" type="button">Exit</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var stage = $("stage"), scene = $("scene");
+  var device = $("device"), deviceWrap = $("deviceWrap");
+  var caption = $("caption"), titleEl = $("titleEl"), subtitleEl = $("subtitleEl");
+  var specular = $("specular"), screenEl = $("screen");
+  var screenImg = $("screenImg"), screenPlaceholder = $("screenPlaceholder");
+  var previewArea = $("previewArea");
+
+  /* ============ State ============ */
+  var state = {
+    bgMode: "gradient",
+    solid: "#1d2440",
+    gradA: "#0f2a43",
+    gradB: "#3b6ea5",
+    gradAngle: 160,
+    bgImage: null,          // data URL
+    shotImage: null,        // data URL
+    title: titleEl.textContent,
+    subtitle: subtitleEl.textContent,
+    titleSize: 84,          // px at 1290-wide stage
+    subtitleSize: 42,
+    textColor: "#f4f6fb",
+    align: "center",
+    phoneOffset: { x: 0, y: 0 },
+    phoneScale: 1,
+    exporting: false
+  };
+
+  /* ============ Stage fitting ============ */
+  var STAGE_W = 1290, STAGE_H = 2796;
+
+  function fitStage() {
+    var pad = state.exporting ? 0 : 48;
+    var aw = previewArea.clientWidth - pad;
+    var ah = previewArea.clientHeight - pad;
+    var s = Math.min(aw / STAGE_W, ah / STAGE_H);
+    if (state.exporting) s = Math.min(s, 1); /* never upscale; allow scroll at true size if huge monitor */
+    stage.style.transform = "scale(" + s + ")";
+    /* Counter the layout footprint so flex centering works with the scaled box */
+    stage.style.margin = (-(STAGE_H * (1 - s)) / 2) + "px " + (-(STAGE_W * (1 - s)) / 2) + "px";
+  }
+  window.addEventListener("resize", fitStage);
+
+  function applyPhonePlacement() {
+    var tx = state.phoneOffset.x / 12.9;
+    var ty = state.phoneOffset.y / 12.9;
+    deviceWrap.style.transform =
+      "translate(" + tx + "cqw, " + ty + "cqw) scale(" + state.phoneScale + ")";
+    syncPhonePlacementControls();
+  }
+
+  function syncPhonePlacementControls() {
+    if (!$("phoneScale")) return;
+    $("phoneScale").value = Math.round(state.phoneScale * 100);
+    $("phoneScaleVal").textContent = Math.round(state.phoneScale * 100) + "%";
+    $("phoneX").value = state.phoneOffset.x;
+    $("phoneXVal").textContent = state.phoneOffset.x;
+    $("phoneY").value = state.phoneOffset.y;
+    $("phoneYVal").textContent = state.phoneOffset.y;
+  }
+
+  function syncRotationControls(rotation) {
+    if (!$("rotXVal") || !rotation) return;
+    [["rotX", "x"], ["rotY", "y"], ["rotZ", "z"]].forEach(function (pair) {
+      var deg = Math.round((rotation[pair[1]] || 0) * 180 / Math.PI);
+      $(pair[0]).value = deg;
+      $(pair[0] + "Val").textContent = deg + "\u00B0";
+    });
+  }
+
+  function applyRotationControls() {
+    if (!window.ScreenshotStage || !window.ScreenshotStage.setRotation) return;
+    window.ScreenshotStage.setRotation({
+      x: (+$("rotX").value) * Math.PI / 180,
+      y: (+$("rotY").value) * Math.PI / 180,
+      z: (+$("rotZ").value) * Math.PI / 180
+    });
+    syncRotationControls(window.ScreenshotStage.getRotation());
+  }
+
+  /* ============ Background ============ */
+  function applyBackground() {
+    if (state.bgMode === "solid") {
+      stage.style.background = state.solid;
+    } else if (state.bgMode === "gradient") {
+      stage.style.background =
+        "linear-gradient(" + state.gradAngle + "deg, " + state.gradA + ", " + state.gradB + ")";
+    } else if (state.bgMode === "image" && state.bgImage) {
+      stage.style.background = "url(" + state.bgImage + ") center / cover no-repeat";
+    } else {
+      stage.style.background = "#222";
+    }
+  }
+
+  var segBgButtons = document.querySelectorAll("[data-bg]");
+  segBgButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.bgMode = btn.dataset.bg;
+      segBgButtons.forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+      document.querySelectorAll(".mode-pane").forEach(function (p) {
+        p.classList.toggle("active", p.id === "pane-" + state.bgMode);
+      });
+      applyBackground();
+    });
+  });
+
+  $("solidColor").addEventListener("input", function (e) {
+    state.solid = e.target.value; applyBackground();
+  });
+  $("gradA").addEventListener("input", function (e) {
+    state.gradA = e.target.value; applyBackground();
+  });
+  $("gradB").addEventListener("input", function (e) {
+    state.gradB = e.target.value; applyBackground();
+  });
+  $("gradAngle").addEventListener("input", function (e) {
+    state.gradAngle = +e.target.value;
+    $("gradAngleVal").textContent = state.gradAngle + "°";
+    applyBackground();
+  });
+
+  function readFile(input, cb) {
+    var f = input.files && input.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () { cb(r.result); };
+    r.readAsDataURL(f);
+  }
+
+  $("bgFile").addEventListener("change", function (e) {
+    readFile(e.target, function (url) {
+      state.bgImage = url;
+      $("bgFileBtn").classList.add("loaded");
+      $("bgFileBtn").firstChild.textContent = "Background image loaded — replace… ";
+      applyBackground();
+    });
+  });
+
+  $("shotFile").addEventListener("change", function (e) {
+    readFile(e.target, function (url) {
+      state.shotImage = url;
+      screenImg.src = url;
+      screenImg.style.display = "block";
+      screenPlaceholder.style.display = "none";
+      $("shotFileBtn").classList.add("loaded");
+      $("shotFileBtn").firstChild.textContent = "Screenshot loaded — replace… ";
+    });
+  });
+
+  function applyPhonePlacementControls() {
+    state.phoneScale = Math.max(0.75, Math.min(1.25, +$("phoneScale").value / 100));
+    state.phoneOffset.x = Math.round(Math.max(-480, Math.min(480, +$("phoneX").value)));
+    state.phoneOffset.y = Math.round(Math.max(-720, Math.min(720, +$("phoneY").value)));
+    applyPhonePlacement();
+  }
+
+  $("phoneScale").addEventListener("input", applyPhonePlacementControls);
+  $("phoneX").addEventListener("input", applyPhonePlacementControls);
+  $("phoneY").addEventListener("input", applyPhonePlacementControls);
+  $("resetPhonePlacement").addEventListener("click", function () {
+    state.phoneScale = 1;
+    state.phoneOffset = { x: 0, y: 0 };
+    applyPhonePlacement();
+  });
+  window.addEventListener("screenshotstage:rotation", function (event) {
+    syncRotationControls(event.detail);
+  });
+  $("rotX").addEventListener("input", applyRotationControls);
+  $("rotY").addEventListener("input", applyRotationControls);
+  $("rotZ").addEventListener("input", applyRotationControls);
+
+  /* ============ Text ============ */
+  function applyText() {
+    titleEl.textContent = state.title;
+    subtitleEl.textContent = state.subtitle;
+    /* cqw: 1cqw = stage width / 100 = 12.9px at design size */
+    titleEl.style.fontSize = (state.titleSize / 12.9) + "cqw";
+    subtitleEl.style.fontSize = (state.subtitleSize / 12.9) + "cqw";
+    caption.style.color = state.textColor;
+    caption.style.textAlign = state.align;
+  }
+
+  $("titleInput").addEventListener("input", function (e) {
+    state.title = e.target.value; applyText();
+  });
+  $("subtitleInput").addEventListener("input", function (e) {
+    state.subtitle = e.target.value; applyText();
+  });
+  $("titleSize").addEventListener("input", function (e) {
+    state.titleSize = +e.target.value;
+    $("titleSizeVal").textContent = state.titleSize;
+    applyText();
+  });
+  $("subtitleSize").addEventListener("input", function (e) {
+    state.subtitleSize = +e.target.value;
+    $("subtitleSizeVal").textContent = state.subtitleSize;
+    applyText();
+  });
+  $("textColor").addEventListener("input", function (e) {
+    state.textColor = e.target.value; applyText();
+  });
+
+  var alignButtons = document.querySelectorAll("[data-align]");
+  alignButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.align = btn.dataset.align;
+      alignButtons.forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+      applyText();
+    });
+  });
+
+  /* ============ 3D tilt ============ */
+  var MAX_TILT = 18;             // degrees
+  var SPRING = "transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+  var tilt = { rx: 0, ry: 0 };   // target
+  var rafId = null;
+  var tracking = false;
+  var spaceDown = false;
+  var panningPhone = false;
+  var panStart = { x: 0, y: 0 };
+  var panStartOffset = { x: 0, y: 0 };
+  var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function applyTilt() {
+    rafId = null;
+    device.style.transform =
+      "rotateX(" + tilt.rx + "deg) rotateY(" + tilt.ry + "deg)";
+    caption.style.transform =
+      "rotateX(" + (tilt.rx * 0.3) + "deg) rotateY(" + (tilt.ry * 0.3) + "deg)";
+  }
+
+  function scheduleTilt() {
+    if (rafId === null) rafId = requestAnimationFrame(applyTilt);
+  }
+
+  function setTransitions(on) {
+    var t = on ? SPRING : "none";
+    device.style.transition = t;
+    caption.style.transition = t;
+  }
+
+  function pointFromEvent(e) {
+    if (e.touches && e.touches.length) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function updateFromPoint(p) {
+    var rect = previewArea.getBoundingClientRect();
+    var nx = (p.x - rect.left) / rect.width - 0.5;   // -0.5 .. 0.5
+    var ny = (p.y - rect.top) / rect.height - 0.5;
+    tilt.ry = Math.max(-MAX_TILT, Math.min(MAX_TILT, nx * 2 * MAX_TILT));
+    tilt.rx = Math.max(-MAX_TILT, Math.min(MAX_TILT, -ny * 2 * MAX_TILT));
+
+    /* Specular highlight: position relative to the screen element */
+    var sr = screenEl.getBoundingClientRect();
+    var hx = ((p.x - sr.left) / sr.width) * 100;
+    var hy = ((p.y - sr.top) / sr.height) * 100;
+    specular.style.setProperty("--hx", hx + "%");
+    specular.style.setProperty("--hy", hy + "%");
+
+    scheduleTilt();
+  }
+
+  function startTrack(e) {
+    if (state.exporting || reducedMotion) return;
+    if (!tracking) { tracking = true; setTransitions(false); }
+    updateFromPoint(pointFromEvent(e));
+  }
+
+  function endTrack() {
+    if (!tracking) return;
+    tracking = false;
+    tilt.rx = 0; tilt.ry = 0;
+    setTransitions(true);
+    /* Apply final neutral transform directly so the spring transition runs */
+    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+    applyTilt();
+  }
+
+  previewArea.addEventListener("pointerdown", function (e) {
+    if (spaceDown) {
+      panningPhone = true;
+      panStart = pointFromEvent(e);
+      panStartOffset = { x: state.phoneOffset.x, y: state.phoneOffset.y };
+      previewArea.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (document.body.classList.contains("model-ready")) return;
+    previewArea.setPointerCapture(e.pointerId);
+    startTrack(e);
+  }, true);
+  previewArea.addEventListener("pointermove", function (e) {
+    if (panningPhone) {
+      var p = pointFromEvent(e);
+      var stageScale = stage.getBoundingClientRect().width / STAGE_W || 1;
+      state.phoneOffset.x = Math.round(panStartOffset.x + (p.x - panStart.x) / stageScale);
+      state.phoneOffset.y = Math.round(panStartOffset.y + (p.y - panStart.y) / stageScale);
+      applyPhonePlacement();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (document.body.classList.contains("model-ready")) return;
+    if (!tracking) return;
+    startTrack(e);
+  }, true);
+  previewArea.addEventListener("pointerup", function (e) {
+    if (panningPhone) {
+      panningPhone = false;
+      if (previewArea.hasPointerCapture(e.pointerId)) previewArea.releasePointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (previewArea.hasPointerCapture(e.pointerId)) previewArea.releasePointerCapture(e.pointerId);
+    endTrack();
+  }, true);
+  previewArea.addEventListener("pointercancel", function () {
+    panningPhone = false;
+    endTrack();
+  });
+
+  /* ============ Export mode ============ */
+  function setExporting(on) {
+    state.exporting = on;
+    document.body.classList.toggle("exporting", on);
+    if (on) endTrack();
+    fitStage();
+  }
+
+  /* ============ Scene JSON editor ============ */
+  function sceneStateForEditor() {
+    var st = window.ScreenshotStage.getState();
+    return {
+      bgMode: st.bgMode,
+      solid: st.solid,
+      gradA: st.gradA,
+      gradB: st.gradB,
+      gradAngle: st.gradAngle,
+      title: st.title,
+      subtitle: st.subtitle,
+      titleSize: st.titleSize,
+      subtitleSize: st.subtitleSize,
+      textColor: st.textColor,
+      align: st.align,
+      phoneOffset: st.phoneOffset,
+      phoneScale: st.phoneScale,
+      rotation: st.rotation,
+      modelAppearance: st.modelAppearance
+    };
+  }
+
+  function refreshJsonEditor() {
+    $("jsonEditor").value = JSON.stringify(sceneStateForEditor(), null, 2);
+  }
+
+  $("jsonToggle").addEventListener("click", function () {
+    var pane = $("jsonPane");
+    var opening = pane.hidden;
+    pane.hidden = !opening;
+    this.setAttribute("aria-expanded", String(opening));
+    this.textContent = opening ? "Hide scene JSON" : "Edit scene JSON…";
+    if (opening) refreshJsonEditor();
+  });
+
+  $("jsonApply").addEventListener("click", function () {
+    var err = $("jsonError");
+    try {
+      var next = JSON.parse($("jsonEditor").value);
+      err.hidden = true;
+      err.textContent = "";
+      window.ScreenshotStage.setState(next);
+      refreshJsonEditor();
+    } catch (e) {
+      err.textContent = "Invalid JSON — " + e.message;
+      err.hidden = false;
+    }
+  });
+
+  $("jsonCopy").addEventListener("click", function () {
+    if (navigator.clipboard) navigator.clipboard.writeText($("jsonEditor").value);
+  });
+
+  $("exportBtn").addEventListener("click", function () { setExporting(true); });
+  $("exitExport").addEventListener("click", function () { setExporting(false); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && state.exporting) setExporting(false);
+    if (e.code === "Space" && !state.exporting) {
+      spaceDown = true;
+      e.preventDefault();
+    }
+  });
+  document.addEventListener("keyup", function (e) {
+    if (e.code === "Space") {
+      spaceDown = false;
+      panningPhone = false;
+      e.preventDefault();
+    }
+  });
+
+  /* ---- Download PNG: redraw the flat composition on a canvas ----
+     The 3D tilt is leveled in export, so a faithful 2D redraw is possible
+     without html2canvas: background, caption text, device frame, screenshot. */
+  $("downloadPng").addEventListener("click", async function () {
+    window.__exportClickCount = (window.__exportClickCount || 0) + 1;
+    window.__lastExportError = "";
+    try {
+    var c = document.createElement("canvas");
+    c.width = STAGE_W; c.height = STAGE_H;
+    var ctx = c.getContext("2d");
+
+    async function drawDeviceAndText() {
+      /* ---- caption ---- */
+      var capW = STAGE_W * 0.84;
+      var capX = (STAGE_W - capW) / 2;
+      var y = STAGE_H * 0.11;
+      ctx.fillStyle = state.textColor;
+      ctx.textBaseline = "top";
+
+      function wrapText(text, font, lineHeight) {
+        ctx.font = font;
+        var words = text.split(" "), line = "", lines = [];
+        for (var i = 0; i < words.length; i++) {
+          var test = line ? line + " " + words[i] : words[i];
+          if (ctx.measureText(test).width > capW && line) {
+            lines.push(line); line = words[i];
+          } else { line = test; }
+        }
+        if (line) lines.push(line);
+        lines.forEach(function (ln) {
+          var x = state.align === "center"
+            ? capX + (capW - ctx.measureText(ln).width) / 2
+            : capX;
+          ctx.fillText(ln, x, y);
+          y += lineHeight;
+        });
+      }
+
+      var uiFont = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      var titleFont = '"EB Garamond", Georgia, serif';
+      wrapText(state.title, "700 " + state.titleSize + "px " + titleFont, state.titleSize * 1.1);
+      y += state.subtitleSize * 0.9;
+      ctx.globalAlpha = 0.66;
+      ctx.letterSpacing = Math.round(state.subtitleSize * 0.14) + "px";
+      wrapText(String(state.subtitle).toUpperCase(), "500 " + state.subtitleSize + "px " + uiFont, state.subtitleSize * 1.4);
+      ctx.letterSpacing = "0px";
+      ctx.globalAlpha = 1;
+
+      /* ---- device ---- */
+      var dw = STAGE_W * 0.56 * state.phoneScale;
+      var dh = dw * (146.6 / 71.6);
+      var dx = (STAGE_W - dw) / 2 + state.phoneOffset.x;
+      var dy = STAGE_H * 0.11 /* caption top */ + STAGE_H * 0.07 /* gap */ +
+               Math.max(y - STAGE_H * 0.11, 0); /* below text */
+      dy = Math.max(dy, y + STAGE_H * 0.05) + state.phoneOffset.y;
+      var r = STAGE_W * 0.086 * state.phoneScale;
+
+      function rr(x0, y0, w0, h0, rad) {
+        ctx.beginPath();
+        ctx.moveTo(x0 + rad, y0);
+        ctx.arcTo(x0 + w0, y0, x0 + w0, y0 + h0, rad);
+        ctx.arcTo(x0 + w0, y0 + h0, x0, y0 + h0, rad);
+        ctx.arcTo(x0, y0 + h0, x0, y0, rad);
+        ctx.arcTo(x0, y0, x0 + w0, y0, rad);
+        ctx.closePath();
+      }
+
+      var phoneCanvas = $("phoneCanvas");
+      if (document.body.classList.contains("model-ready") && window.ScreenshotStage && window.ScreenshotStage.renderPhone) {
+        /* Render into a stage-wide viewport so a Z-rolled phone is not clipped
+           to its upright bounding box; vertical framing (and phone size) is
+           set by the height, which stays dh. */
+        var rw = Math.min(STAGE_W, Math.round(dh));
+        var renderedPhone = await window.ScreenshotStage.renderPhone({
+          width: rw,
+          height: Math.round(dh)
+        });
+        ctx.drawImage(renderedPhone, Math.round(dx + dw / 2 - rw / 2), Math.round(dy), rw, Math.round(dh));
+      } else {
+        /* frame */
+        var fg = ctx.createLinearGradient(dx, dy, dx + dw, dy + dh);
+        fg.addColorStop(0, "#4d4c4f");
+        fg.addColorStop(0.45, "#2c2b2e");
+        fg.addColorStop(0.6, "#232225");
+        fg.addColorStop(1, "#4a494d");
+        ctx.fillStyle = fg;
+        rr(dx, dy, dw, dh, r);
+        ctx.fill();
+
+        /* inner bezel */
+        var inset = STAGE_W * 0.0115;
+        ctx.fillStyle = "#000";
+        rr(dx + inset, dy + inset, dw - inset * 2, dh - inset * 2, r - inset);
+        ctx.fill();
+
+        /* screenshot, cover-fit and clipped */
+        ctx.save();
+        rr(dx + inset, dy + inset, dw - inset * 2, dh - inset * 2, r - inset);
+        ctx.clip();
+        if (screenImg.complete && state.shotImage) {
+          var sw = screenImg.naturalWidth, sh = screenImg.naturalHeight;
+          var bw = dw - inset * 2, bh = dh - inset * 2;
+          var sc = Math.max(bw / sw, bh / sh);
+          ctx.drawImage(screenImg,
+            dx + inset + (bw - sw * sc) / 2,
+            dy + inset + (bh - sh * sc) / 2,
+            sw * sc, sh * sc);
+        } else {
+          var pg = ctx.createRadialGradient(dx + dw/2, dy + inset, 10, dx + dw/2, dy + inset, dh);
+          pg.addColorStop(0, "#2b2b31"); pg.addColorStop(0.7, "#151518");
+          ctx.fillStyle = pg;
+          ctx.fillRect(dx, dy, dw, dh);
+          ctx.fillStyle = "#8b8a92";
+          ctx.font = "500 " + (STAGE_W * 0.022) + "px " + uiFont;
+          var ph = "Upload a screenshot";
+          ctx.fillText(ph, dx + (dw - ctx.measureText(ph).width) / 2, dy + dh / 2);
+        }
+        ctx.restore();
+
+        /* Dynamic Island */
+        var iw = dw * 0.295;
+        var ih = dw * 0.0875;
+        rr(dx + (dw - iw) / 2, dy + dw * 0.0286, iw, ih, ih / 2);
+        ctx.fillStyle = "#000";
+        ctx.fill();
+      }
+
+      var url = c.toDataURL("image/png");
+      window.__lastExportDataUrl = url;
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "app-store-shot-1290x2796.png";
+      a.click();
+    }
+
+    /* background first */
+    if (state.bgMode === "solid") {
+      ctx.fillStyle = state.solid;
+      ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+      await drawDeviceAndText();
+    } else if (state.bgMode === "gradient") {
+      var ang = (state.gradAngle - 90) * Math.PI / 180;
+      var cx = STAGE_W / 2, cy = STAGE_H / 2;
+      var L = Math.abs(STAGE_W * Math.cos(ang)) + Math.abs(STAGE_H * Math.sin(ang));
+      var lg = ctx.createLinearGradient(
+        cx - Math.cos(ang) * L / 2, cy - Math.sin(ang) * L / 2,
+        cx + Math.cos(ang) * L / 2, cy + Math.sin(ang) * L / 2);
+      lg.addColorStop(0, state.gradA);
+      lg.addColorStop(1, state.gradB);
+      ctx.fillStyle = lg;
+      ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+      await drawDeviceAndText();
+    } else if (state.bgMode === "image" && state.bgImage) {
+      var img = new Image();
+      img.onload = async function () {
+        var sc = Math.max(STAGE_W / img.naturalWidth, STAGE_H / img.naturalHeight);
+        ctx.drawImage(img,
+          (STAGE_W - img.naturalWidth * sc) / 2,
+          (STAGE_H - img.naturalHeight * sc) / 2,
+          img.naturalWidth * sc, img.naturalHeight * sc);
+        await drawDeviceAndText();
+      };
+      img.src = state.bgImage;
+      return;
+    } else {
+      ctx.fillStyle = "#222";
+      ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+      await drawDeviceAndText();
+    }
+    } catch (err) {
+      window.__lastExportError = err && err.message ? err.message : String(err);
+      console.error("PNG export failed", err);
+    }
+  });
+
+  function setPressed(selector, value, attr) {
+    document.querySelectorAll(selector).forEach(function (btn) {
+      btn.setAttribute("aria-pressed", String(btn.dataset[attr] === value));
+    });
+  }
+
+  function syncControlsFromState() {
+    $("solidColor").value = state.solid;
+    $("gradA").value = state.gradA;
+    $("gradB").value = state.gradB;
+    $("gradAngle").value = state.gradAngle;
+    $("gradAngleVal").textContent = state.gradAngle + "°";
+    $("titleInput").value = state.title;
+    $("subtitleInput").value = state.subtitle;
+    $("titleSize").value = state.titleSize;
+    $("titleSizeVal").textContent = state.titleSize;
+    $("subtitleSize").value = state.subtitleSize;
+    $("subtitleSizeVal").textContent = state.subtitleSize;
+    $("textColor").value = state.textColor;
+    syncPhonePlacementControls();
+    syncRotationControls(window.ScreenshotStage && window.ScreenshotStage.getRotation ? window.ScreenshotStage.getRotation() : null);
+    setPressed("[data-bg]", state.bgMode, "bg");
+    setPressed("[data-align]", state.align, "align");
+    document.querySelectorAll(".mode-pane").forEach(function (p) {
+      p.classList.toggle("active", p.id === "pane-" + state.bgMode);
+    });
+  }
+
+  function applySceneState(next) {
+    if (!next || typeof next !== "object") return;
+    if (["solid", "gradient", "image"].indexOf(next.bgMode) !== -1) state.bgMode = next.bgMode;
+    if (typeof next.solid === "string") state.solid = next.solid;
+    if (typeof next.gradA === "string") state.gradA = next.gradA;
+    if (typeof next.gradB === "string") state.gradB = next.gradB;
+    if (typeof next.gradAngle === "number") state.gradAngle = Math.max(0, Math.min(360, next.gradAngle));
+    if (typeof next.title === "string") state.title = next.title;
+    if (typeof next.subtitle === "string") state.subtitle = next.subtitle;
+    if (typeof next.titleSize === "number") state.titleSize = Math.max(40, Math.min(140, next.titleSize));
+    if (typeof next.subtitleSize === "number") state.subtitleSize = Math.max(24, Math.min(80, next.subtitleSize));
+    if (typeof next.textColor === "string") state.textColor = next.textColor;
+    if (["left", "center"].indexOf(next.align) !== -1) state.align = next.align;
+    if (next.phoneOffset && typeof next.phoneOffset === "object") {
+      if (typeof next.phoneOffset.x === "number") state.phoneOffset.x = Math.round(Math.max(-480, Math.min(480, next.phoneOffset.x)));
+      if (typeof next.phoneOffset.y === "number") state.phoneOffset.y = Math.round(Math.max(-720, Math.min(720, next.phoneOffset.y)));
+    }
+    if (typeof next.phoneScale === "number") state.phoneScale = Math.max(0.75, Math.min(1.25, next.phoneScale));
+    if (next.rotation && window.ScreenshotStage && window.ScreenshotStage.setRotation) {
+      window.ScreenshotStage.setRotation(next.rotation);
+    }
+    if (next.modelAppearance && window.ScreenshotStage && window.ScreenshotStage.setModelAppearance) {
+      window.ScreenshotStage.setModelAppearance(next.modelAppearance);
+    }
+    syncControlsFromState();
+    applyBackground();
+    applyText();
+    applyPhonePlacement();
+  }
+
+  window.ScreenshotStage = Object.assign(window.ScreenshotStage || {}, {
+    isPanningPhone: function () {
+      return spaceDown || panningPhone;
+    },
+    getState: function () {
+      var rotation = window.ScreenshotStage.getRotation ? window.ScreenshotStage.getRotation() : null;
+      var displayRect = window.ScreenshotStage.getDisplayRect ? window.ScreenshotStage.getDisplayRect() : null;
+      var modelAppearance = window.ScreenshotStage.getModelAppearance ? window.ScreenshotStage.getModelAppearance() : null;
+      syncRotationControls(rotation);
+      return {
+        bgMode: state.bgMode,
+        solid: state.solid,
+        gradA: state.gradA,
+        gradB: state.gradB,
+        gradAngle: state.gradAngle,
+        title: state.title,
+        subtitle: state.subtitle,
+        titleSize: state.titleSize,
+        subtitleSize: state.subtitleSize,
+        textColor: state.textColor,
+        align: state.align,
+        phoneOffset: { x: state.phoneOffset.x, y: state.phoneOffset.y },
+        phoneScale: Number(state.phoneScale.toFixed(3)),
+        rotation: rotation,
+        displayRect: displayRect,
+        modelAppearance: modelAppearance
+      };
+    },
+    setState: function (next) {
+      applySceneState(next);
+      return window.ScreenshotStage.getState();
+    }
+  });
+
+  /* ============ Init ============ */
+  applyBackground();
+  applyText();
+  applyPhonePlacement();
+  fitStage();
+})();
+</script>
+<script type="module" src="/src/phone-stage.js"></script>
+</body>
+</html>
