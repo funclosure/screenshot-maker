@@ -704,7 +704,7 @@
     </label>
     <div class="row" style="margin-top:12px">
       <label for="phoneScale">Scale</label>
-      <input type="range" id="phoneScale" class="grow" min="75" max="125" value="100">
+      <input type="range" id="phoneScale" class="grow" min="50" max="150" value="100">
       <span class="val" id="phoneScaleVal">100%</span>
     </div>
     <div class="row">
@@ -853,6 +853,15 @@
     align: "center",
     phoneOffset: { x: 0, y: 0 },
     phoneScale: 1,
+    /* Fraction of stage width the rendered phone body occupies (before
+       phoneScale). Export re-renders the 3D model at this size, so larger
+       values stay crisp. Preview width is 56cqw, compensated in
+       applyPhonePlacement. */
+    phoneWidthRatio: 0.72,
+    /* The 3D model is the default export path. The flat 2D-drawn phone is
+       opt-in only, so an unready model fails the export instead of silently
+       degrading a set. */
+    allow2DFallback: false,
     exporting: false
   };
 
@@ -874,8 +883,11 @@
   function applyPhonePlacement() {
     var tx = state.phoneOffset.x / 12.9;
     var ty = state.phoneOffset.y / 12.9;
+    /* Preview device CSS width is 56cqw; compensate so the preview matches
+       the export's phoneWidthRatio sizing. */
+    var previewScale = state.phoneScale * (state.phoneWidthRatio / 0.56);
     deviceWrap.style.transform =
-      "translate(" + tx + "cqw, " + ty + "cqw) scale(" + state.phoneScale + ")";
+      "translate(" + tx + "cqw, " + ty + "cqw) scale(" + previewScale + ")";
     syncPhonePlacementControls();
   }
 
@@ -980,7 +992,7 @@
   });
 
   function applyPhonePlacementControls() {
-    state.phoneScale = Math.max(0.75, Math.min(1.25, +$("phoneScale").value / 100));
+    state.phoneScale = Math.max(0.5, Math.min(1.5, +$("phoneScale").value / 100));
     state.phoneOffset.x = Math.round(Math.max(-480, Math.min(480, +$("phoneX").value)));
     state.phoneOffset.y = Math.round(Math.max(-720, Math.min(720, +$("phoneY").value)));
     applyPhonePlacement();
@@ -1183,6 +1195,7 @@
       align: st.align,
       phoneOffset: st.phoneOffset,
       phoneScale: st.phoneScale,
+      phoneWidthRatio: st.phoneWidthRatio,
       rotation: st.rotation,
       modelAppearance: st.modelAppearance
     };
@@ -1285,7 +1298,7 @@
       ctx.globalAlpha = 1;
 
       /* ---- device ---- */
-      var dw = STAGE_W * 0.56 * state.phoneScale;
+      var dw = STAGE_W * state.phoneWidthRatio * state.phoneScale;
       var dh = dw * (146.6 / 71.6);
       var dx = (STAGE_W - dw) / 2 + state.phoneOffset.x;
       var dy = STAGE_H * 0.11 /* caption top */ + STAGE_H * 0.07 /* gap */ +
@@ -1315,6 +1328,9 @@
         });
         ctx.drawImage(renderedPhone, Math.round(dx + dw / 2 - rw / 2), Math.round(dy), rw, Math.round(dh));
       } else {
+        if (!state.allow2DFallback) {
+          throw new Error("3D model not ready — export refused. Set allow2DFallback: true to export the flat 2D phone instead.");
+        }
         /* frame */
         var fg = ctx.createLinearGradient(dx, dy, dx + dw, dy + dh);
         fg.addColorStop(0, "#4d4c4f");
@@ -1456,7 +1472,9 @@
       if (typeof next.phoneOffset.x === "number") state.phoneOffset.x = Math.round(Math.max(-480, Math.min(480, next.phoneOffset.x)));
       if (typeof next.phoneOffset.y === "number") state.phoneOffset.y = Math.round(Math.max(-720, Math.min(720, next.phoneOffset.y)));
     }
-    if (typeof next.phoneScale === "number") state.phoneScale = Math.max(0.75, Math.min(1.25, next.phoneScale));
+    if (typeof next.phoneScale === "number") state.phoneScale = Math.max(0.5, Math.min(1.5, next.phoneScale));
+    if (typeof next.phoneWidthRatio === "number") state.phoneWidthRatio = Math.max(0.4, Math.min(0.9, next.phoneWidthRatio));
+    if (typeof next.allow2DFallback === "boolean") state.allow2DFallback = next.allow2DFallback;
     if (next.rotation && window.ScreenshotStage && window.ScreenshotStage.setRotation) {
       window.ScreenshotStage.setRotation(next.rotation);
     }
@@ -1492,6 +1510,8 @@
         align: state.align,
         phoneOffset: { x: state.phoneOffset.x, y: state.phoneOffset.y },
         phoneScale: Number(state.phoneScale.toFixed(3)),
+        phoneWidthRatio: Number(state.phoneWidthRatio.toFixed(3)),
+        allow2DFallback: state.allow2DFallback,
         rotation: rotation,
         displayRect: displayRect,
         modelAppearance: modelAppearance

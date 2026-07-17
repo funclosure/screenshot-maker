@@ -12,11 +12,15 @@ function usage() {
   return [
     "Usage:",
     "  node scripts/render-screenshot.mjs --screenshot <png> --output <png> [options]",
+    "  node scripts/render-screenshot.mjs --batch <manifest.json> [options]",
     "",
     "Options:",
     "  --url <url>          Existing stage URL. Starts Vite automatically when omitted.",
-    "  --state <json-file>  Scene state JSON file.",
-    "  --state-json <json>  Inline scene state JSON.",
+    "  --state <json-file>  Scene state JSON file (single mode).",
+    "  --state-json <json>  Inline scene state JSON (single mode).",
+    "  --batch <json-file>  Render many screenshots in one browser session.",
+    "                       Manifest: { base?: {state}, items: [{screenshot, output, state?}] }",
+    "                       Paths resolve relative to the manifest file.",
     "  --headed             Show Chromium while rendering."
   ].join("\n");
 }
@@ -113,6 +117,81 @@ async function readState(args) {
   return null;
 }
 
+async function openStage(browser, url) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.goto(url);
+  await page.locator("#phoneCanvas").waitFor({ state: "visible", timeout: 15000 });
+  // The 3D model is the point of the tool: always wait for it so exports
+  // never silently fall back to the flat 2D-drawn phone.
+  await page.waitForFunction(() => document.getElementById("phoneCanvas")?.dataset.modelReady === "true");
+  await page.evaluate(() => document.fonts.ready);
+  return page;
+}
+
+function pngDimensions(buffer) {
+  // PNG IHDR: width/height are big-endian uint32 at offsets 16/20.
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
+async function renderOne(page, { screenshotPath, outputPath, state }) {
+  if (!existsSync(screenshotPath)) {
+    throw new Error(`Screenshot not found: ${screenshotPath}`);
+  }
+
+  await page.locator("#shotFile").setInputFiles(screenshotPath);
+  await page.waitForFunction(() => {
+    const img = document.getElementById("screenImg");
+    return img && img.complete && img.naturalWidth > 0;
+  });
+
+  if (state) {
+    await page.evaluate((next) => window.ScreenshotStage.setState(next), state);
+  }
+
+  // Reset the export marker so a stale data URL from a previous item can
+  // never be mistaken for this item's render.
+  await page.evaluate(() => { window.__lastExportDataUrl = null; });
+
+  // The export button is hidden once the stage is in export mode; only click
+  // when it is visible (i.e. we still need to ENTER export mode).
+  const exportBtn = page.locator("#exportBtn");
+  if (await exportBtn.isVisible()) {
+    await exportBtn.click();
+  }
+  await page.getByRole("button", { name: "Download PNG" }).click();
+  await page.waitForFunction(() => window.__lastExportDataUrl?.startsWith("data:image/png;base64,"), null, {
+    timeout: 30000
+  });
+
+  const dataUrl = await page.evaluate(() => window.__lastExportDataUrl);
+  const png = Buffer.from(dataUrl.split(",")[1], "base64");
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, png);
+  const { width, height } = pngDimensions(png);
+  console.log(`${outputPath} (${width}x${height})`);
+}
+
+async function readBatch(manifestPath) {
+  const resolved = path.resolve(manifestPath);
+  const manifest = JSON.parse(await readFile(resolved, "utf8"));
+  const baseDir = path.dirname(resolved);
+  if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
+    throw new Error("Batch manifest needs a non-empty items array.");
+  }
+  return manifest.items.map((item, index) => {
+    if (!item.screenshot || !item.output) {
+      throw new Error(`Batch item ${index} needs screenshot and output paths.`);
+    }
+    return {
+      screenshotPath: path.resolve(baseDir, item.screenshot),
+      outputPath: path.resolve(baseDir, item.output),
+      // Shallow merge: item state wins over manifest base. Give every item a
+      // complete title/subtitle; only shared styling belongs in base.
+      state: { ...(manifest.base || {}), ...(item.state || {}) }
+    };
+  });
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -120,50 +199,28 @@ async function main() {
     return;
   }
 
-  if (!args.screenshot || !args.output) {
-    throw new Error(`${usage()}\n\n--screenshot and --output are required.`);
+  let jobs;
+  if (args.batch) {
+    jobs = await readBatch(args.batch);
+  } else {
+    if (!args.screenshot || !args.output) {
+      throw new Error(`${usage()}\n\n--screenshot and --output are required (or use --batch).`);
+    }
+    jobs = [{
+      screenshotPath: path.resolve(args.screenshot),
+      outputPath: path.resolve(args.output),
+      state: await readState(args)
+    }];
   }
 
-  const screenshotPath = path.resolve(args.screenshot);
-  const outputPath = path.resolve(args.output);
-  if (!existsSync(screenshotPath)) {
-    throw new Error(`Screenshot not found: ${screenshotPath}`);
-  }
-
-  const state = await readState(args);
   let server = null;
   const browser = await chromium.launch({ headless: !args.headed });
-
   try {
     const url = args.url || (server = await startServer()).url;
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    await page.goto(url);
-    await page.locator("#phoneCanvas").waitFor({ state: "visible", timeout: 15000 });
-    await page.locator("#phoneCanvas").waitFor({ timeout: 15000 });
-    await page.waitForFunction(() => document.getElementById("phoneCanvas")?.dataset.modelReady === "true");
-    await page.evaluate(() => document.fonts.ready);
-
-    await page.locator("#shotFile").setInputFiles(screenshotPath);
-    await page.waitForFunction(() => {
-      const img = document.getElementById("screenImg");
-      return img && img.complete && img.naturalWidth > 0;
-    });
-
-    if (state) {
-      await page.evaluate((next) => window.ScreenshotStage.setState(next), state);
+    const page = await openStage(browser, url);
+    for (const job of jobs) {
+      await renderOne(page, job);
     }
-
-    await page.getByRole("button", { name: "Enter export mode" }).click();
-    await page.getByRole("button", { name: "Download PNG" }).click();
-    await page.waitForFunction(() => window.__lastExportDataUrl?.startsWith("data:image/png;base64,"), null, {
-      timeout: 30000
-    });
-
-    const dataUrl = await page.evaluate(() => window.__lastExportDataUrl);
-    const png = Buffer.from(dataUrl.split(",")[1], "base64");
-    await mkdir(path.dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, png);
-    console.log(outputPath);
   } finally {
     await browser.close();
     if (server) server.stop();

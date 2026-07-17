@@ -86,10 +86,50 @@ test("exports the phone from a high-resolution render pass", async ({ page }) =>
   await page.getByRole("button", { name: "Enter export mode" }).click();
   await page.getByRole("button", { name: "Download PNG" }).click();
 
+  // height = 1290 * phoneWidthRatio(0.72) * body aspect (146.6/71.6)
   await expect.poll(() => page.evaluate(() => window.__phoneRenderRequest)).toMatchObject({
     width: 1290,
-    height: 1479
+    height: 1902
   });
+});
+
+test("export fails loudly when the 3D model is not ready", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  // Simulate a stage whose 3D model never became ready.
+  await page.evaluate(() => document.body.classList.remove("model-ready"));
+
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportError || ""),
+    { timeout: 10000 }
+  ).toContain("3D model");
+  expect(await page.evaluate(() => window.__lastExportDataUrl || null)).toBeNull();
+});
+
+test("export uses the flat 2D phone only when allow2DFallback is set", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => {
+    document.body.classList.remove("model-ready");
+    window.ScreenshotStage.setState({ allow2DFallback: true });
+  });
+
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportDataUrl || ""),
+    { timeout: 20000 }
+  ).toContain("data:image/png;base64,");
+  expect(await page.evaluate(() => window.__lastExportError || "")).toBe("");
+  const png = Buffer.from((await page.evaluate(() => window.__lastExportDataUrl)).split(",")[1], "base64");
+  expect(png.readUInt32BE(16)).toBe(1290);
+  expect(png.readUInt32BE(20)).toBe(2796);
 });
 
 test("exposes a scriptable scene API", async ({ page }) => {
