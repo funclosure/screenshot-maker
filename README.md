@@ -60,13 +60,22 @@ npm run render -- --batch manifest.json
             "textColor": "#2B2B2B", "titleSize": 82, "subtitleSize": 40 },
   "items": [
     { "screenshot": "raw/editor.png", "output": "framed/01-editor.png",
-      "state": { "title": "Turn moments into cards", "subtitle": "Style any quote" } }
+      "state": { "title": "Turn moments into cards", "subtitle": "Style any quote" } },
+    { "screenshot": "raw/home.png", "output": "framed/{locale}/02-home.png",
+      "locales": {
+        "en-US": { "title": "See where your money goes", "subtitle": "Insights" },
+        "ja":    { "title": "お金の流れが見える", "subtitle": "インサイト" }
+      } }
   ]
 }
 ```
 
 `base` is shared state, each item's `state` shallow-merges over it; paths
-resolve relative to the manifest file.
+resolve relative to the manifest file. An item with `locales` renders once
+per locale from the same raw screenshot — its `output` must contain a
+`{locale}` placeholder, and each locale's state merges last so per-locale
+captions win. Add `--gallery out/index.html` to also write an HTML contact
+sheet of the whole set, grouped by locale, for quick visual review.
 
 CLI contract (agent-facing): every rendered output prints one `path (WxH)`
 line on stdout; warnings and `[stage]` browser errors go to stderr. A failed

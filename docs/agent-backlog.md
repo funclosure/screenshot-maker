@@ -43,6 +43,12 @@ future session can act without re-discovering context.
     export's image branch awaits the background load so its errors reach
     `__lastExportError` (was an unhandled-async hang).
   - `examples/scene.json` no longer carries output-only keys.
+- **Localized batch + gallery** (was item 7; validated by the first
+  external user shipping an en-US + ja Slipsee set). Batch items accept
+  `locales: {"<tag>": {title, subtitle, ...}}` and render once per locale
+  from the same raw screenshot; `output` must contain `{locale}` (checked,
+  fails loudly). `--gallery <html>` writes a locale-grouped HTML contact
+  sheet of the rendered set.
 
 ## TODO (priority order)
 
@@ -75,10 +81,7 @@ future session can act without re-discovering context.
    `xcrun simctl status_bar booted override --time "9:41" ...` before
    capture, and the simulator Dynamic Island renders a black pill for ~40s
    after launch — wait before capturing.
-7. **Localized batch sugar.** Per-item `locales: {"zh-Hant": {title, subtitle}}`
-   expanding to parallel outputs, so one manifest yields en-US + zh-Hant
-   sets from the same raw screenshots.
-8. **Golden-image test for export.** `npm test` covers the stage; add a
+7. **Golden-image test for export.** `npm test` covers the stage; add a
    batch render against a checked-in raw PNG and compare IHDR + a few
    sampled pixels, so refactors of the export path can't silently change
    output geometry.

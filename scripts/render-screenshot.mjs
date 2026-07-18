@@ -19,9 +19,14 @@ function usage() {
     "  --state <json-file>  Scene state JSON file (single mode).",
     "  --state-json <json>  Inline scene state JSON (single mode).",
     "  --batch <json-file>  Render many screenshots in one browser session.",
-    "                       Manifest: { base?: {state}, items: [{screenshot, output, state?}] }",
+    "                       Manifest: { base?: {state}, items: [{screenshot, output, state?, locales?}] }",
     "                       Paths resolve relative to the manifest file; item state",
     "                       shallow-merges over base.",
+    "                       locales: {\"<tag>\": {title, subtitle, ...}} renders the item",
+    "                       once per locale; output must contain a {locale} placeholder",
+    "                       (e.g. \"out/{locale}/01-home.png\"). Locale state merges last.",
+    "  --gallery <html>     Also write an HTML contact sheet of every rendered output",
+    "                       (grouped by locale) for quick visual review.",
     "  --headed             Show Chromium while rendering.",
     "",
     "Scene state keys (all optional; unrecognized keys are warned about and ignored):",
@@ -44,7 +49,7 @@ function usage() {
   ].join("\n");
 }
 
-const KNOWN_OPTIONS = ["--screenshot", "--output", "--url", "--state", "--state-json", "--batch", "--headed", "--help"];
+const KNOWN_OPTIONS = ["--screenshot", "--output", "--url", "--state", "--state-json", "--batch", "--gallery", "--headed", "--help"];
 
 function editDistance(a, b) {
   const rows = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
@@ -294,6 +299,56 @@ async function renderOne(page, { screenshotPath, outputPath, state }) {
   await writeFile(outputPath, png);
   const { width, height } = pngDimensions(png);
   console.log(`${outputPath} (${width}x${height})`);
+  return { outputPath, width, height };
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+async function writeGallery(galleryPath, results) {
+  const galleryDir = path.dirname(galleryPath);
+  const groups = new Map();
+  for (const result of results) {
+    const key = result.locale || "";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(result);
+  }
+
+  const sections = [...groups.entries()].map(([locale, shots]) => {
+    const figures = shots.map((shot) => {
+      const src = path.relative(galleryDir, shot.outputPath).split(path.sep).join("/");
+      const caption = shot.state && shot.state.title ? shot.state.title : path.basename(shot.outputPath);
+      return [
+        "    <figure>",
+        `      <a href="${escapeHtml(src)}"><img src="${escapeHtml(src)}" alt="${escapeHtml(caption)}" loading="lazy"></a>`,
+        `      <figcaption><strong>${escapeHtml(caption)}</strong><br>${escapeHtml(path.basename(shot.outputPath))} · ${shot.width}x${shot.height}</figcaption>`,
+        "    </figure>"
+      ].join("\n");
+    }).join("\n");
+    const heading = locale ? `  <h2>${escapeHtml(locale)}</h2>\n` : "";
+    return `${heading}  <div class="grid">\n${figures}\n  </div>`;
+  }).join("\n");
+
+  const html = [
+    "<!doctype html>",
+    '<meta charset="utf-8">',
+    "<title>Screenshot set</title>",
+    "<style>",
+    "  body { font-family: -apple-system, sans-serif; margin: 32px; background: #f5f2ec; color: #222; }",
+    "  .grid { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 32px; }",
+    "  figure { margin: 0; width: 220px; }",
+    "  img { width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }",
+    "  figcaption { font-size: 12px; margin-top: 6px; color: #555; }",
+    "</style>",
+    `<h1>Screenshot set</h1>`,
+    `<p>${results.length} rendered output(s).</p>`,
+    sections
+  ].join("\n");
+
+  await mkdir(galleryDir, { recursive: true });
+  await writeFile(galleryPath, html);
+  console.log(`${galleryPath} (gallery, ${results.length} shots)`);
 }
 
 async function readBatch(manifestPath) {
@@ -303,17 +358,34 @@ async function readBatch(manifestPath) {
   if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
     throw new Error("Batch manifest needs a non-empty items array.");
   }
-  return manifest.items.map((item, index) => {
+  return manifest.items.flatMap((item, index) => {
     if (!item.screenshot || !item.output) {
-      throw new Error(`Batch item ${index} needs screenshot and output paths.`);
+      throw new Error(`Batch item ${index + 1} needs screenshot and output paths.`);
     }
-    return {
-      screenshotPath: path.resolve(baseDir, item.screenshot),
-      outputPath: path.resolve(baseDir, item.output),
-      // Shallow merge: item state wins over manifest base. Give every item a
-      // complete title/subtitle; only shared styling belongs in base.
-      state: { ...(manifest.base || {}), ...(item.state || {}) }
-    };
+    const screenshotPath = path.resolve(baseDir, item.screenshot);
+    // Shallow merge: item state wins over manifest base. Give every item a
+    // complete title/subtitle; only shared styling belongs in base.
+    const itemState = { ...(manifest.base || {}), ...(item.state || {}) };
+    if (!item.locales) {
+      return [{ screenshotPath, outputPath: path.resolve(baseDir, item.output), state: itemState, locale: null }];
+    }
+    const locales = Object.entries(item.locales);
+    if (!locales.length) {
+      throw new Error(`Batch item ${index + 1} has an empty locales object.`);
+    }
+    if (!item.output.includes("{locale}")) {
+      throw new Error(
+        `Batch item ${index + 1} uses locales, so its output needs a {locale} placeholder ` +
+        `(e.g. "out/{locale}/${path.basename(item.output)}") — otherwise the locales would overwrite each other.`
+      );
+    }
+    // Locale state merges last so per-locale captions win over item/base.
+    return locales.map(([locale, localeState]) => ({
+      screenshotPath,
+      outputPath: path.resolve(baseDir, item.output.replaceAll("{locale}", locale)),
+      state: { ...itemState, ...(localeState || {}) },
+      locale
+    }));
   });
 }
 
@@ -334,7 +406,8 @@ async function main() {
     jobs = [{
       screenshotPath: path.resolve(args.screenshot),
       outputPath: path.resolve(args.output),
-      state: await readState(args)
+      state: await readState(args),
+      locale: null
     }];
   }
 
@@ -344,14 +417,18 @@ async function main() {
     const url = args.url || (server = await startServer()).url;
     const page = await openStage(browser, url);
     let failed = 0;
+    const results = [];
     for (const [index, job] of jobs.entries()) {
       try {
-        await renderOne(page, job);
+        results.push({ ...job, ...(await renderOne(page, job)) });
       } catch (error) {
         if (jobs.length === 1) throw error;
         failed += 1;
         console.error(`FAILED item ${index + 1}/${jobs.length} (${job.screenshotPath} -> ${job.outputPath}): ${error.message}`);
       }
+    }
+    if (args.gallery && results.length) {
+      await writeGallery(path.resolve(args.gallery), results);
     }
     if (failed) {
       throw new Error(`${failed}/${jobs.length} items failed; the rendered items listed on stdout are complete.`);

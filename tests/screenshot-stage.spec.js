@@ -332,6 +332,8 @@ test("CLI --help documents the scene state keys", async () => {
     expect(stdout).toContain(key);
   }
   expect(stdout).toContain("examples/scene.json");
+  expect(stdout).toContain("locales");
+  expect(stdout).toContain("--gallery");
 });
 
 test("CLI warns about unrecognized scene state keys", async ({ baseURL }) => {
@@ -460,6 +462,111 @@ test("CLI surfaces stage export errors instead of a generic timeout", async ({ b
     expect(error).not.toBeNull();
     expect(error.code).toBe(1);
     expect(String(error.stderr)).toContain("Background image");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI batch expands per-item locales into parallel outputs", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const manifest = path.join(dir, "manifest.json");
+
+  try {
+    await writeFile(path.join(dir, "source.png"), Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "base64"
+    ));
+    await writeFile(manifest, JSON.stringify({
+      base: { subtitle: "shared subtitle" },
+      items: [{
+        screenshot: "source.png",
+        output: "out/{locale}/shot.png",
+        locales: {
+          "en-US": { title: "Hello" },
+          "ja": { title: "こんにちは" }
+        }
+      }]
+    }));
+
+    const { stdout } = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--batch", manifest
+    ], { cwd: process.cwd(), timeout: 60000 });
+
+    expect(stdout).toContain(path.join("out", "en-US", "shot.png"));
+    expect(stdout).toContain(path.join("out", "ja", "shot.png"));
+    for (const locale of ["en-US", "ja"]) {
+      const png = await readFile(path.join(dir, "out", locale, "shot.png"));
+      expect(png.toString("ascii", 1, 4)).toBe("PNG");
+      expect(png.readUInt32BE(16)).toBe(1290);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI batch requires a {locale} placeholder when locales are used", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const manifest = path.join(dir, "manifest.json");
+
+  try {
+    await writeFile(manifest, JSON.stringify({
+      items: [{
+        screenshot: "source.png",
+        output: "out/shot.png",
+        locales: { "en-US": { title: "Hello" }, "ja": { title: "こんにちは" } }
+      }]
+    }));
+
+    const error = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--batch", manifest
+    ], { cwd: process.cwd(), timeout: 15000 }).then(() => null, (e) => e);
+
+    expect(error).not.toBeNull();
+    expect(error.code).toBe(1);
+    expect(String(error.stderr)).toContain("{locale}");
+    expect(String(error.stderr)).toContain("item 1");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI --gallery writes an HTML contact sheet of the rendered set", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const manifest = path.join(dir, "manifest.json");
+  const gallery = path.join(dir, "out", "index.html");
+
+  try {
+    await writeFile(path.join(dir, "source.png"), Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "base64"
+    ));
+    await writeFile(manifest, JSON.stringify({
+      items: [{
+        screenshot: "source.png",
+        output: "out/{locale}/shot.png",
+        locales: {
+          "en-US": { title: "Hello" },
+          "ja": { title: "こんにちは" }
+        }
+      }]
+    }));
+
+    await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--batch", manifest,
+      "--gallery", gallery
+    ], { cwd: process.cwd(), timeout: 60000 });
+
+    const html = await readFile(gallery, "utf8");
+    expect(html).toContain("en-US/shot.png");
+    expect(html).toContain("ja/shot.png");
+    expect(html).toContain("Hello");
+    expect(html).toContain("こんにちは");
+    expect(html).toContain("1290");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
