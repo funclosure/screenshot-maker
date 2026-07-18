@@ -1406,16 +1406,20 @@
       await drawDeviceAndText();
     } else if (state.bgMode === "image" && state.bgImage) {
       var img = new Image();
-      img.onload = async function () {
-        var sc = Math.max(STAGE_W / img.naturalWidth, STAGE_H / img.naturalHeight);
-        ctx.drawImage(img,
-          (STAGE_W - img.naturalWidth * sc) / 2,
-          (STAGE_H - img.naturalHeight * sc) / 2,
-          img.naturalWidth * sc, img.naturalHeight * sc);
-        await drawDeviceAndText();
-      };
-      img.src = state.bgImage;
-      return;
+      /* Await the load so failures (bad image, refused 2D fallback) reach
+         the outer catch and __lastExportError instead of dying in a
+         detached onload callback. */
+      await new Promise(function (resolve, reject) {
+        img.onload = resolve;
+        img.onerror = function () { reject(new Error("Background image failed to load — check bgImage.")); };
+        img.src = state.bgImage;
+      });
+      var sc = Math.max(STAGE_W / img.naturalWidth, STAGE_H / img.naturalHeight);
+      ctx.drawImage(img,
+        (STAGE_W - img.naturalWidth * sc) / 2,
+        (STAGE_H - img.naturalHeight * sc) / 2,
+        img.naturalWidth * sc, img.naturalHeight * sc);
+      await drawDeviceAndText();
     } else {
       ctx.fillStyle = "#222";
       ctx.fillRect(0, 0, STAGE_W, STAGE_H);
@@ -1459,6 +1463,7 @@
     if (!next || typeof next !== "object") return;
     if (["solid", "gradient", "image"].indexOf(next.bgMode) !== -1) state.bgMode = next.bgMode;
     if (typeof next.solid === "string") state.solid = next.solid;
+    if (typeof next.bgImage === "string") state.bgImage = next.bgImage;
     if (typeof next.gradA === "string") state.gradA = next.gradA;
     if (typeof next.gradB === "string") state.gradB = next.gradB;
     if (typeof next.gradAngle === "number") state.gradAngle = Math.max(0, Math.min(360, next.gradAngle));
@@ -1499,6 +1504,7 @@
       return {
         bgMode: state.bgMode,
         solid: state.solid,
+        bgImage: state.bgImage,
         gradA: state.gradA,
         gradB: state.gradB,
         gradAngle: state.gradAngle,

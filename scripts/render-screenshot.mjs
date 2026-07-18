@@ -20,9 +20,58 @@ function usage() {
     "  --state-json <json>  Inline scene state JSON (single mode).",
     "  --batch <json-file>  Render many screenshots in one browser session.",
     "                       Manifest: { base?: {state}, items: [{screenshot, output, state?}] }",
-    "                       Paths resolve relative to the manifest file.",
-    "  --headed             Show Chromium while rendering."
+    "                       Paths resolve relative to the manifest file; item state",
+    "                       shallow-merges over base.",
+    "  --headed             Show Chromium while rendering.",
+    "",
+    "Scene state keys (all optional; unrecognized keys are warned about and ignored):",
+    "  title, subtitle             Caption text.",
+    "  titleSize (40-140), subtitleSize (24-80), textColor, align (\"center\"|\"left\")",
+    "  bgMode                      \"gradient\" | \"solid\" | \"image\"",
+    "  gradA, gradB, gradAngle     Gradient colors and angle in degrees.",
+    "  solid                       Solid background color.",
+    "  bgImage                     Background image data URL (with bgMode \"image\").",
+    "  rotation                    {x, y, z} phone angle in radians; {x:0, y:0} = flat-on.",
+    "  phoneWidthRatio (0.4-0.9)   Fraction of stage width the phone occupies (default 0.72).",
+    "  phoneScale (0.5-1.5)        Extra multiplier on top of phoneWidthRatio.",
+    "  phoneOffset                 {x, y} phone pan in output pixels.",
+    "  allow2DFallback             Default false: export fails when the 3D model is not",
+    "                              ready instead of drawing a flat 2D phone.",
+    "",
+    "Output: one \"path (WxH)\" line per rendered PNG on stdout; output is always",
+    "1290x2796 (App Store 6.7\"/6.9\" slot). Warnings and stage errors go to stderr;",
+    "exit code 1 when any item fails. Starter scene: examples/scene.json (see README.md)."
   ].join("\n");
+}
+
+const KNOWN_OPTIONS = ["--screenshot", "--output", "--url", "--state", "--state-json", "--batch", "--headed", "--help"];
+
+function editDistance(a, b) {
+  const rows = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j += 1) rows[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      rows[i][j] = Math.min(
+        rows[i - 1][j] + 1,
+        rows[i][j - 1] + 1,
+        rows[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+  }
+  return rows[a.length][b.length];
+}
+
+function closestOption(arg) {
+  let best = null;
+  let bestDistance = 3;
+  for (const option of KNOWN_OPTIONS) {
+    const distance = editDistance(arg, option);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = option;
+    }
+  }
+  return best;
 }
 
 function parseArgs(argv) {
@@ -32,6 +81,10 @@ function parseArgs(argv) {
     if (arg === "--help" || arg === "-h") args.help = true;
     else if (arg === "--headed") args.headed = true;
     else if (arg.startsWith("--")) {
+      if (!KNOWN_OPTIONS.includes(arg)) {
+        const hint = closestOption(arg);
+        throw new Error(`Unknown option: ${arg}${hint ? ` (did you mean ${hint}?)` : ""}\n\n${usage()}`);
+      }
       const key = arg.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
       const value = argv[i + 1];
       if (!value || value.startsWith("--")) {
@@ -119,11 +172,34 @@ async function readState(args) {
 
 async function openStage(browser, url) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("console", (message) => {
+    if (message.type() === "error") process.stderr.write(`[stage] ${message.text()}\n`);
+  });
+  page.on("pageerror", (error) => {
+    process.stderr.write(`[stage] ${error.message}\n`);
+  });
   await page.goto(url);
+  if (await page.locator("#phoneCanvas").count() === 0) {
+    throw new Error(
+      `${url} does not look like the screenshot stage (no #phoneCanvas). ` +
+      "Point --url at .../screenshot-stage.html, or omit --url to start the bundled stage."
+    );
+  }
   await page.locator("#phoneCanvas").waitFor({ state: "visible", timeout: 15000 });
   // The 3D model is the point of the tool: always wait for it so exports
   // never silently fall back to the flat 2D-drawn phone.
-  await page.waitForFunction(() => document.getElementById("phoneCanvas")?.dataset.modelReady === "true");
+  try {
+    await page.waitForFunction(
+      () => document.getElementById("phoneCanvas")?.dataset.modelReady === "true",
+      null,
+      { timeout: 20000 }
+    );
+  } catch {
+    throw new Error(
+      "The 3D iPhone model did not become ready within 20s — " +
+      "see [stage] lines above for the cause (model file missing, WebGL unavailable)."
+    );
+  }
   await page.evaluate(() => document.fonts.ready);
   return page;
 }
@@ -133,10 +209,42 @@ function pngDimensions(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
+const CANVAS_ASPECT = 1290 / 2796;
+
+function warnOnAspectMismatch(screenshotPath, buffer) {
+  if (buffer.length < 24 || buffer.toString("ascii", 1, 4) !== "PNG") return;
+  const { width, height } = pngDimensions(buffer);
+  const aspect = width / height;
+  if (Math.abs(aspect - CANVAS_ASPECT) / CANVAS_ASPECT > 0.02) {
+    console.error(
+      `warning: ${screenshotPath} is ${width}x${height} (aspect ${aspect.toFixed(3)}); ` +
+      `the 1290x2796 canvas expects ~${CANVAS_ASPECT.toFixed(3)} — the screenshot will be center-cropped to fit.`
+    );
+  }
+}
+
+async function applyState(page, state) {
+  // setState returns the effective state; any sent key the stage does not
+  // echo back was silently ignored — surface that instead of letting a typo
+  // produce a "successful" wrong render.
+  const effective = await page.evaluate((next) => window.ScreenshotStage.setState(next), state);
+  const ignored = Object.keys(state).filter((key) => !(key in effective));
+  if (ignored.length) {
+    console.error(
+      `warning: state key(s) not recognized by the stage and ignored: ${ignored.join(", ")}.\n` +
+      `Known keys: ${Object.keys(effective).join(", ")}`
+    );
+  }
+  if ("displayRect" in state) {
+    console.error('warning: state key "displayRect" is derived output and was ignored.');
+  }
+}
+
 async function renderOne(page, { screenshotPath, outputPath, state }) {
   if (!existsSync(screenshotPath)) {
     throw new Error(`Screenshot not found: ${screenshotPath}`);
   }
+  warnOnAspectMismatch(screenshotPath, await readFile(screenshotPath));
 
   await page.locator("#shotFile").setInputFiles(screenshotPath);
   await page.waitForFunction(() => {
@@ -145,12 +253,15 @@ async function renderOne(page, { screenshotPath, outputPath, state }) {
   });
 
   if (state) {
-    await page.evaluate((next) => window.ScreenshotStage.setState(next), state);
+    await applyState(page, state);
   }
 
-  // Reset the export marker so a stale data URL from a previous item can
+  // Reset the export markers so a stale result from a previous item can
   // never be mistaken for this item's render.
-  await page.evaluate(() => { window.__lastExportDataUrl = null; });
+  await page.evaluate(() => {
+    window.__lastExportDataUrl = null;
+    window.__lastExportError = "";
+  });
 
   // The export button is hidden once the stage is in export mode; only click
   // when it is visible (i.e. we still need to ENTER export mode).
@@ -159,9 +270,23 @@ async function renderOne(page, { screenshotPath, outputPath, state }) {
     await exportBtn.click();
   }
   await page.getByRole("button", { name: "Download PNG" }).click();
-  await page.waitForFunction(() => window.__lastExportDataUrl?.startsWith("data:image/png;base64,"), null, {
-    timeout: 30000
-  });
+  try {
+    await page.waitForFunction(
+      () => (window.__lastExportDataUrl && window.__lastExportDataUrl.startsWith("data:image/png;base64,")) ||
+        window.__lastExportError,
+      null,
+      { timeout: 30000 }
+    );
+  } catch {
+    throw new Error(
+      "Export did not finish within 30s and the stage reported no error — " +
+      "see [stage] lines above, or rerun with --headed to inspect the stage."
+    );
+  }
+  const exportError = await page.evaluate(() => window.__lastExportError);
+  if (exportError) {
+    throw new Error(`Stage export failed: ${exportError}`);
+  }
 
   const dataUrl = await page.evaluate(() => window.__lastExportDataUrl);
   const png = Buffer.from(dataUrl.split(",")[1], "base64");
@@ -218,8 +343,18 @@ async function main() {
   try {
     const url = args.url || (server = await startServer()).url;
     const page = await openStage(browser, url);
-    for (const job of jobs) {
-      await renderOne(page, job);
+    let failed = 0;
+    for (const [index, job] of jobs.entries()) {
+      try {
+        await renderOne(page, job);
+      } catch (error) {
+        if (jobs.length === 1) throw error;
+        failed += 1;
+        console.error(`FAILED item ${index + 1}/${jobs.length} (${job.screenshotPath} -> ${job.outputPath}): ${error.message}`);
+      }
+    }
+    if (failed) {
+      throw new Error(`${failed}/${jobs.length} items failed; the rendered items listed on stdout are complete.`);
     }
   } finally {
     await browser.close();

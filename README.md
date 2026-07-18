@@ -66,8 +66,14 @@ npm run render -- --batch manifest.json
 ```
 
 `base` is shared state, each item's `state` shallow-merges over it; paths
-resolve relative to the manifest file. Every output is printed as
-`path (WxH)`.
+resolve relative to the manifest file.
+
+CLI contract (agent-facing): every rendered output prints one `path (WxH)`
+line on stdout; warnings and `[stage]` browser errors go to stderr. A failed
+batch item does not stop the remaining items — each failure is reported as
+`FAILED item N/M (...): reason` and the exit code is 1 when anything failed.
+Unknown CLI options and unrecognized scene keys are called out explicitly
+(scene typos warn but don't fail). `--help` documents the full scene schema.
 
 The command starts the local Vite stage when `--url` is omitted. If an agent
 already has the stage open, pass `--url http://127.0.0.1:5173/screenshot-stage.html`.
@@ -79,7 +85,8 @@ Scene JSON can control:
 - `phoneWidthRatio`: fraction of stage width the phone body occupies
   (default `0.72`, clamped `0.4...0.9`). This is the primary size knob.
 - `phoneScale`: multiplier on top of `phoneWidthRatio`, clamped `0.5...1.5`.
-- `bgMode`, `solid`, `gradA`, `gradB`, `gradAngle`: background.
+- `bgMode`, `solid`, `gradA`, `gradB`, `gradAngle`: background;
+  `bgImage` (data URL) with `bgMode: "image"`.
 - `title`, `subtitle`, `titleSize`, `subtitleSize`, `textColor`, `align`: text.
 - `allow2DFallback`: default `false` — the export always uses the 3D model
   and fails loudly when it isn't ready. Set `true` to allow the flat

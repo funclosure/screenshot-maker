@@ -292,6 +292,179 @@ test("edits the scene from the JSON panel", async ({ page }) => {
   await expect(page.locator("#titleEl")).toHaveText("From the JSON panel");
 });
 
+test("surfaces export errors thrown inside image-background mode", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  // A broken background image must fail the export with a clear error, not hang.
+  await page.evaluate(() => window.ScreenshotStage.setState({
+    bgMode: "image",
+    bgImage: "data:image/png;base64,not-a-real-png"
+  }));
+
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportError || ""),
+    { timeout: 10000 }
+  ).toContain("Background image");
+});
+
+test("CLI rejects unknown options with a suggestion", async () => {
+  const error = await execFileAsync("node", [
+    "scripts/render-screenshot.mjs",
+    "--uri", "http://127.0.0.1:9/x"
+  ], { cwd: process.cwd(), timeout: 15000 }).then(() => null, (e) => e);
+
+  expect(error).not.toBeNull();
+  expect(error.code).toBe(1);
+  expect(String(error.stderr)).toContain("Unknown option: --uri");
+  expect(String(error.stderr)).toContain("--url");
+});
+
+test("CLI --help documents the scene state keys", async () => {
+  const { stdout } = await execFileAsync("node", [
+    "scripts/render-screenshot.mjs", "--help"
+  ], { cwd: process.cwd(), timeout: 15000 });
+
+  for (const key of ["phoneWidthRatio", "phoneScale", "rotation", "allow2DFallback", "gradA", "titleSize"]) {
+    expect(stdout).toContain(key);
+  }
+  expect(stdout).toContain("examples/scene.json");
+});
+
+test("CLI warns about unrecognized scene state keys", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const source = path.join(dir, "source.png");
+  const output = path.join(dir, "output.png");
+
+  try {
+    await writeFile(source, Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "base64"
+    ));
+
+    const { stderr } = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--screenshot", source,
+      "--output", output,
+      "--state-json", JSON.stringify({ title: "ok", titleColour: "#fff" })
+    ], { cwd: process.cwd(), timeout: 30000 });
+
+    expect(stderr).toContain("titleColour");
+    expect(stderr.toLowerCase()).toContain("ignored");
+    const png = await readFile(output);
+    expect(png.toString("ascii", 1, 4)).toBe("PNG");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI batch keeps rendering after a failed item and reports a summary", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const source = path.join(dir, "source.png");
+  const manifest = path.join(dir, "manifest.json");
+
+  try {
+    await writeFile(source, Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "base64"
+    ));
+    await writeFile(manifest, JSON.stringify({
+      items: [
+        { screenshot: "missing.png", output: "out/one.png", state: { title: "a", subtitle: "b" } },
+        { screenshot: "source.png", output: "out/two.png", state: { title: "c", subtitle: "d" } }
+      ]
+    }));
+
+    const error = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--batch", manifest
+    ], { cwd: process.cwd(), timeout: 60000 }).then(() => null, (e) => e);
+
+    expect(error).not.toBeNull();
+    expect(error.code).toBe(1);
+    expect(String(error.stderr)).toContain("item 1/2");
+    expect(String(error.stderr)).toContain("missing.png");
+    expect(String(error.stderr)).toContain("1/2 items failed");
+    const png = await readFile(path.join(dir, "out/two.png"));
+    expect(png.toString("ascii", 1, 4)).toBe("PNG");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI explains when the URL is not the screenshot stage", async ({ baseURL }) => {
+  const error = await execFileAsync("node", [
+    "scripts/render-screenshot.mjs",
+    "--url", `${baseURL}/does-not-exist.html`,
+    "--screenshot", "package.json",
+    "--output", "/tmp/never-written.png"
+  ], { cwd: process.cwd(), timeout: 30000 }).then(() => null, (e) => e);
+
+  expect(error).not.toBeNull();
+  expect(error.code).toBe(1);
+  expect(String(error.stderr)).toContain("screenshot stage");
+});
+
+test("CLI warns when the input aspect ratio does not match the canvas", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const source = path.join(dir, "square.png");
+  const output = path.join(dir, "output.png");
+
+  try {
+    // 1x1 PNG: aspect 1.0, far from the 1290/2796 canvas aspect.
+    await writeFile(source, Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "base64"
+    ));
+
+    const { stderr } = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--screenshot", source,
+      "--output", output
+    ], { cwd: process.cwd(), timeout: 30000 });
+
+    expect(stderr.toLowerCase()).toContain("aspect");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI surfaces stage export errors instead of a generic timeout", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const source = path.join(dir, "source.png");
+  const output = path.join(dir, "output.png");
+
+  try {
+    await writeFile(source, Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "base64"
+    ));
+
+    const error = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--screenshot", source,
+      "--output", output,
+      "--state-json", JSON.stringify({
+        bgMode: "image",
+        bgImage: "data:image/png;base64,not-a-real-png"
+      })
+    ], { cwd: process.cwd(), timeout: 30000 }).then(() => null, (e) => e);
+
+    expect(error).not.toBeNull();
+    expect(error.code).toBe(1);
+    expect(String(error.stderr)).toContain("Background image");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("renders an App Store PNG from the agent CLI", async ({ baseURL }) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
   const source = path.join(dir, "source.png");

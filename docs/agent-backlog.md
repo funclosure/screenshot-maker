@@ -25,6 +25,24 @@ future session can act without re-discovering context.
   below). Export now throws `"3D model not ready — export refused"` unless
   the scene sets `allow2DFallback: true` (`screenshot-stage.html`, export
   else-branch; state key accepted by `setState`/reported by `getState`).
+- **CLI agent-friendliness pass** (July 2026). Goal: an agent using only
+  `--help` and CLI output can compose a correct render and learns the exact
+  cause on the first failure. Shipped in `scripts/render-screenshot.mjs`:
+  - `--help` documents the full scene-key schema + output/exit contract.
+  - Unknown `--options` rejected with a did-you-mean suggestion.
+  - Unrecognized scene keys warned (CLI diffs sent state vs `getState()`).
+  - Page `console.error`/`pageerror` forwarded to stderr as `[stage]` lines;
+    export waits race `__lastExportDataUrl` vs `__lastExportError` so stage
+    failures surface immediately instead of a generic 30s timeout.
+  - Wrong `--url` (no `#phoneCanvas`) and model-never-ready get explicit
+    error messages.
+  - Batch continues past failed items; `FAILED item N/M (...)` per item plus
+    a summary; exit 1 if any failed.
+  - Input-aspect warning when the source PNG deviates >2% from 1290:2796.
+  - Stage: `bgImage` accepted via `setState`/reported by `getState`; the
+    export's image branch awaits the background load so its errors reach
+    `__lastExportError` (was an unhandled-async hang).
+  - `examples/scene.json` no longer carries output-only keys.
 
 ## TODO (priority order)
 
@@ -44,14 +62,14 @@ future session can act without re-discovering context.
    deriving gradient + text color would remove the most error-prone knob.
    The warm-light set used in production: `#FDEEE7 → #F6D3C2`, angle 165,
    text `#2B2B2B`, titleSize 82, subtitleSize 40.
-4. **Scene validation.** `applySceneState` silently ignores unknown keys
-   (typos vanish). Log/return warnings for unrecognized fields; publish a
-   JSON schema next to `examples/scene.json`. Also mark `displayRect` /
-   `modelAppearance` in the example as outputs/advanced — they confuse
-   scene authoring.
-5. **ASC-size awareness in the CLI.** It prints `(WxH)` now; also warn when
-   the output matches no App Store slot (embed the small size table:
-   iPhone 6.9/6.7 = 1290×2796 or 1320×2868; iPad 13 = 2064×2752).
+4. **Scene validation in the stage itself.** The CLI now warns on
+   unrecognized keys (by diffing against `getState()`), but in-browser
+   `setState` callers still get silent ignores. Publish a JSON schema next
+   to `examples/scene.json` and/or have `applySceneState` return the list
+   of ignored keys.
+5. **ASC-size awareness in the CLI.** Input-aspect mismatch now warns; also
+   warn when the output matches no App Store slot (embed the small size
+   table: iPhone 6.9/6.7 = 1290×2796 or 1320×2868; iPad 13 = 2064×2752).
 6. **Status-bar hygiene.** Document (or optionally composite) a clean 9:41
    status bar; raw captures often carry real time/battery. Companion note:
    `xcrun simctl status_bar booted override --time "9:41" ...` before
