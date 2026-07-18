@@ -599,6 +599,24 @@
     z-index: 4;
   }
 
+  /* ============ Plain (no device frame) mode ============ */
+  /* These rules come after the model-ready rules on purpose: same
+     specificity, so source order lets plain mode win. */
+  body.plain-frame #phoneCanvas { display: none; }
+  body.plain-frame #device {
+    display: block;
+    background: none;
+    box-shadow: 0 1.2cqw 4cqw rgba(0, 0, 0, 0.25);
+    border-radius: 3cqw;
+  }
+  body.plain-frame #device::before,
+  body.plain-frame #device::after,
+  body.plain-frame .side-btn,
+  body.plain-frame #island,
+  body.plain-frame #specular { display: none; }
+  body.plain-frame #screen { inset: 0; border-radius: 3cqw; }
+  body.plain-frame #screen::after { display: none; }
+
   /* ============ Export mode ============ */
   body.exporting #sidebar { display: none; }
   body.exporting #previewArea { padding: 0; }
@@ -862,6 +880,9 @@
        opt-in only, so an unready model fails the export instead of silently
        degrading a set. */
     allow2DFallback: false,
+    /* "iphone-3d" (default) or "none": plain rounded screenshot with a soft
+       shadow — no device frame, no 3D model needed. */
+    frame: "iphone-3d",
     exporting: false
   };
 
@@ -879,6 +900,19 @@
     stage.style.margin = (-(STAGE_H * (1 - s)) / 2) + "px " + (-(STAGE_W * (1 - s)) / 2) + "px";
   }
   window.addEventListener("resize", fitStage);
+
+  function applyFrameMode() {
+    var plain = state.frame === "none";
+    document.body.classList.toggle("plain-frame", plain);
+    /* In plain mode the preview box follows the screenshot's own aspect
+       instead of the phone body's. */
+    if (plain && state.shotImage && screenImg.complete && screenImg.naturalWidth > 0) {
+      device.style.aspectRatio = String(screenImg.naturalWidth / screenImg.naturalHeight);
+    } else {
+      device.style.aspectRatio = "";
+    }
+  }
+  screenImg.addEventListener("load", applyFrameMode);
 
   function applyPhonePlacement() {
     var tx = state.phoneOffset.x / 12.9;
@@ -1316,8 +1350,28 @@
         ctx.closePath();
       }
 
-      var phoneCanvas = $("phoneCanvas");
-      if (document.body.classList.contains("model-ready") && window.ScreenshotStage && window.ScreenshotStage.renderPhone) {
+      if (state.frame === "none") {
+        /* Plain mode: the screenshot itself, rounded corners + soft shadow,
+           at its own aspect ratio. No device body, no 3D model needed. */
+        if (!(state.shotImage && screenImg.complete && screenImg.naturalWidth > 0)) {
+          throw new Error('Plain mode (frame: "none") needs an uploaded screenshot.');
+        }
+        var ph = dw * (screenImg.naturalHeight / screenImg.naturalWidth);
+        var pr = dw * 0.045;
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.28)";
+        ctx.shadowBlur = STAGE_W * 0.03;
+        ctx.shadowOffsetY = STAGE_W * 0.012;
+        rr(dx, dy, dw, ph, pr);
+        ctx.fillStyle = "#000";
+        ctx.fill();
+        ctx.restore();
+        ctx.save();
+        rr(dx, dy, dw, ph, pr);
+        ctx.clip();
+        ctx.drawImage(screenImg, dx, dy, dw, ph);
+        ctx.restore();
+      } else if (document.body.classList.contains("model-ready") && window.ScreenshotStage && window.ScreenshotStage.renderPhone) {
         /* Render into a stage-wide viewport so a Z-rolled phone is not clipped
            to its upright bounding box; vertical framing (and phone size) is
            set by the height, which stays dh. */
@@ -1480,6 +1534,7 @@
     if (typeof next.phoneScale === "number") state.phoneScale = Math.max(0.5, Math.min(1.5, next.phoneScale));
     if (typeof next.phoneWidthRatio === "number") state.phoneWidthRatio = Math.max(0.4, Math.min(0.9, next.phoneWidthRatio));
     if (typeof next.allow2DFallback === "boolean") state.allow2DFallback = next.allow2DFallback;
+    if (["iphone-3d", "none"].indexOf(next.frame) !== -1) state.frame = next.frame;
     if (next.rotation && window.ScreenshotStage && window.ScreenshotStage.setRotation) {
       window.ScreenshotStage.setRotation(next.rotation);
     }
@@ -1490,6 +1545,7 @@
     applyBackground();
     applyText();
     applyPhonePlacement();
+    applyFrameMode();
   }
 
   window.ScreenshotStage = Object.assign(window.ScreenshotStage || {}, {
@@ -1518,6 +1574,7 @@
         phoneScale: Number(state.phoneScale.toFixed(3)),
         phoneWidthRatio: Number(state.phoneWidthRatio.toFixed(3)),
         allow2DFallback: state.allow2DFallback,
+        frame: state.frame,
         rotation: rotation,
         displayRect: displayRect,
         modelAppearance: modelAppearance

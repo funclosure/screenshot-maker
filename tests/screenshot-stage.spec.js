@@ -328,7 +328,7 @@ test("CLI --help documents the scene state keys", async () => {
     "scripts/render-screenshot.mjs", "--help"
   ], { cwd: process.cwd(), timeout: 15000 });
 
-  for (const key of ["phoneWidthRatio", "phoneScale", "rotation", "allow2DFallback", "gradA", "titleSize"]) {
+  for (const key of ["phoneWidthRatio", "phoneScale", "rotation", "allow2DFallback", "gradA", "titleSize", "frame"]) {
     expect(stdout).toContain(key);
   }
   expect(stdout).toContain("examples/scene.json");
@@ -462,6 +462,106 @@ test("CLI surfaces stage export errors instead of a generic timeout", async ({ b
     expect(error).not.toBeNull();
     expect(error.code).toBe(1);
     expect(String(error.stderr)).toContain("Background image");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+const TINY_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+
+test("plain mode preview hides the phone chrome", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => window.ScreenshotStage.setState({ frame: "none" }));
+  await expect(page.locator("#phoneCanvas")).toBeHidden();
+  await expect(page.locator("#device")).toBeVisible();
+  await expect(page.locator("#island")).toBeHidden();
+
+  await page.evaluate(() => window.ScreenshotStage.setState({ frame: "iphone-3d" }));
+  await expect(page.locator("#phoneCanvas")).toBeVisible();
+  await expect(page.locator("#island")).toBeHidden(); // island only shows in the CSS fallback device
+});
+
+test("plain mode exports without touching the 3D model", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-plain-"));
+  const source = path.join(dir, "shot.png");
+  try {
+    await writeFile(source, Buffer.from(TINY_PNG_BASE64, "base64"));
+    await page.locator("#shotFile").setInputFiles(source);
+    await page.waitForFunction(() => {
+      const img = document.getElementById("screenImg");
+      return img && img.complete && img.naturalWidth > 0;
+    });
+
+    await page.evaluate(() => {
+      window.__phoneRenderCalls = 0;
+      const original = window.ScreenshotStage.renderPhone;
+      window.ScreenshotStage.renderPhone = async (options) => {
+        window.__phoneRenderCalls += 1;
+        return original(options);
+      };
+      // Plain mode must not need the model at all.
+      document.body.classList.remove("model-ready");
+      window.ScreenshotStage.setState({ frame: "none" });
+    });
+
+    await page.getByRole("button", { name: "Enter export mode" }).click();
+    await page.getByRole("button", { name: "Download PNG" }).click();
+
+    await expect.poll(
+      () => page.evaluate(() => window.__lastExportDataUrl || ""),
+      { timeout: 20000 }
+    ).toContain("data:image/png;base64,");
+    expect(await page.evaluate(() => window.__lastExportError || "")).toBe("");
+    expect(await page.evaluate(() => window.__phoneRenderCalls)).toBe(0);
+    const png = Buffer.from((await page.evaluate(() => window.__lastExportDataUrl)).split(",")[1], "base64");
+    expect(png.readUInt32BE(16)).toBe(1290);
+    expect(png.readUInt32BE(20)).toBe(2796);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("plain mode export requires an uploaded screenshot", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => window.ScreenshotStage.setState({ frame: "none" }));
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportError || ""),
+    { timeout: 10000 }
+  ).toContain("screenshot");
+});
+
+test("CLI renders plain mode from scene state", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const source = path.join(dir, "source.png");
+  const output = path.join(dir, "output.png");
+
+  try {
+    await writeFile(source, Buffer.from(TINY_PNG_BASE64, "base64"));
+
+    const { stderr } = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--screenshot", source,
+      "--output", output,
+      "--state-json", JSON.stringify({ title: "Plain", subtitle: "No frame", frame: "none" })
+    ], { cwd: process.cwd(), timeout: 30000 });
+
+    expect(stderr).not.toContain("not recognized");
+    const png = await readFile(output);
+    expect(png.toString("ascii", 1, 4)).toBe("PNG");
+    expect(png.readUInt32BE(16)).toBe(1290);
+    expect(png.readUInt32BE(20)).toBe(2796);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
