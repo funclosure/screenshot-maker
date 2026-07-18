@@ -27,6 +27,10 @@ function usage() {
     "                       (e.g. \"out/{locale}/01-home.png\"). Locale state merges last.",
     "  --gallery <html>     Also write an HTML contact sheet of every rendered output",
     "                       (grouped by locale) for quick visual review.",
+    "  --canvas <preset>    App Store slot preset (overrides scene state):",
+    "                         iphone-6.9     1290x2796 (default; also the 6.7\" slot)",
+    "                         iphone-6.9-alt 1320x2868",
+    "                         ipad-13        2064x2752 (requires frame: \"none\")",
     "  --headed             Show Chromium while rendering.",
     "",
     "Scene state keys (all optional; unrecognized keys are warned about and ignored):",
@@ -45,14 +49,22 @@ function usage() {
     "  phoneOffset                 {x, y} phone pan in output pixels.",
     "  allow2DFallback             Default false: export fails when the 3D model is not",
     "                              ready instead of drawing a flat 2D phone.",
+    "  canvas                      Slot preset name (same values as --canvas).",
     "",
-    "Output: one \"path (WxH)\" line per rendered PNG on stdout; output is always",
-    "1290x2796 (App Store 6.7\"/6.9\" slot). Warnings and stage errors go to stderr;",
-    "exit code 1 when any item fails. Starter scene: examples/scene.json (see README.md)."
+    "Output: one \"path (WxH)\" line per rendered PNG on stdout, sized by the canvas",
+    "preset (default 1290x2796). Warnings and stage errors go to stderr; exit code 1",
+    "when any item fails. Starter scene: examples/scene.json (see README.md)."
   ].join("\n");
 }
 
-const KNOWN_OPTIONS = ["--screenshot", "--output", "--url", "--state", "--state-json", "--batch", "--gallery", "--headed", "--help"];
+const KNOWN_OPTIONS = ["--screenshot", "--output", "--url", "--state", "--state-json", "--batch", "--gallery", "--canvas", "--headed", "--help"];
+
+// Keep in sync with CANVAS_PRESETS in screenshot-stage.html.
+const CANVAS_PRESETS = {
+  "iphone-6.9": { width: 1290, height: 2796 },
+  "iphone-6.9-alt": { width: 1320, height: 2868 },
+  "ipad-13": { width: 2064, height: 2752 }
+};
 
 function editDistance(a, b) {
   const rows = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
@@ -217,16 +229,15 @@ function pngDimensions(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
-const CANVAS_ASPECT = 1290 / 2796;
-
-function warnOnAspectMismatch(screenshotPath, buffer) {
+function warnOnAspectMismatch(screenshotPath, buffer, canvas) {
   if (buffer.length < 24 || buffer.toString("ascii", 1, 4) !== "PNG") return;
   const { width, height } = pngDimensions(buffer);
   const aspect = width / height;
-  if (Math.abs(aspect - CANVAS_ASPECT) / CANVAS_ASPECT > 0.02) {
+  const canvasAspect = canvas.width / canvas.height;
+  if (Math.abs(aspect - canvasAspect) / canvasAspect > 0.02) {
     console.error(
       `warning: ${screenshotPath} is ${width}x${height} (aspect ${aspect.toFixed(3)}); ` +
-      `the 1290x2796 canvas expects ~${CANVAS_ASPECT.toFixed(3)} — the screenshot will be center-cropped to fit.`
+      `the ${canvas.width}x${canvas.height} canvas expects ~${canvasAspect.toFixed(3)} — the screenshot will be center-cropped to fit.`
     );
   }
 }
@@ -252,7 +263,8 @@ async function renderOne(page, { screenshotPath, outputPath, state }) {
   if (!existsSync(screenshotPath)) {
     throw new Error(`Screenshot not found: ${screenshotPath}`);
   }
-  warnOnAspectMismatch(screenshotPath, await readFile(screenshotPath));
+  const canvas = CANVAS_PRESETS[state && state.canvas] || CANVAS_PRESETS["iphone-6.9"];
+  warnOnAspectMismatch(screenshotPath, await readFile(screenshotPath), canvas);
 
   await page.locator("#shotFile").setInputFiles(screenshotPath);
   await page.waitForFunction(() => {
@@ -399,6 +411,12 @@ async function main() {
     return;
   }
 
+  if (args.canvas && !CANVAS_PRESETS[args.canvas]) {
+    throw new Error(
+      `Unknown canvas preset: ${args.canvas}. Valid presets: ${Object.keys(CANVAS_PRESETS).join(", ")}.`
+    );
+  }
+
   let jobs;
   if (args.batch) {
     jobs = await readBatch(args.batch);
@@ -412,6 +430,9 @@ async function main() {
       state: await readState(args),
       locale: null
     }];
+  }
+  if (args.canvas) {
+    jobs = jobs.map((job) => ({ ...job, state: { ...(job.state || {}), canvas: args.canvas } }));
   }
 
   let server = null;

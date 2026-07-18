@@ -101,10 +101,19 @@ Scene JSON can control:
   and fails loudly when it isn't ready. Set `true` to allow the flat
   2D-drawn phone as a fallback.
 
+- `frame`: `"iphone-3d"` (default) or `"none"` — plain rounded screenshot
+  with a soft shadow, no device frame or 3D model (works for iPad captures).
+- `canvas`: App Store slot preset — `iphone-6.9` (1290 × 2796, default; also
+  the 6.7" slot), `iphone-6.9-alt` (1320 × 2868), `ipad-13` (2064 × 2752,
+  requires `frame: "none"` until an iPad model exists). Also available as
+  the CLI flag `--canvas <preset>`, which overrides scene state.
+
 Sizing note: the export **re-renders the 3D model** at the target pixel size,
 so large `phoneWidthRatio`/`phoneScale` values stay crisp — only the live
-preview uses a CSS transform. Input PNGs can be any iPhone portrait capture
-(e.g. 1206 × 2622); output is always 1290 × 2796 (App Store 6.7"/6.9" slot).
+preview uses a CSS transform. Input PNGs can be any portrait capture
+(e.g. 1206 × 2622 iPhone, 2048 × 2732 iPad); output size follows the canvas
+preset. `titleSize`/`subtitleSize` are defined at a 1290-wide reference and
+scale with canvas width, so the same state renders proportionally everywhere.
 
 Known gaps and next improvements live in `docs/agent-backlog.md`.
 

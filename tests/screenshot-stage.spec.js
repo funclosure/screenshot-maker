@@ -334,6 +334,8 @@ test("CLI --help documents the scene state keys", async () => {
   expect(stdout).toContain("examples/scene.json");
   expect(stdout).toContain("locales");
   expect(stdout).toContain("--gallery");
+  expect(stdout).toContain("--canvas");
+  expect(stdout).toContain("ipad-13");
 });
 
 test("CLI warns about unrecognized scene state keys", async ({ baseURL }) => {
@@ -539,6 +541,92 @@ test("plain mode export requires an uploaded screenshot", async ({ page }) => {
     () => page.evaluate(() => window.__lastExportError || ""),
     { timeout: 10000 }
   ).toContain("screenshot");
+});
+
+test("exports an iPad 13-inch canvas in plain mode", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-ipad-"));
+  const source = path.join(dir, "shot.png");
+  try {
+    await writeFile(source, Buffer.from(TINY_PNG_BASE64, "base64"));
+    await page.locator("#shotFile").setInputFiles(source);
+    await page.waitForFunction(() => {
+      const img = document.getElementById("screenImg");
+      return img && img.complete && img.naturalWidth > 0;
+    });
+
+    await page.evaluate(() => window.ScreenshotStage.setState({ canvas: "ipad-13", frame: "none" }));
+
+    await page.getByRole("button", { name: "Enter export mode" }).click();
+    await page.getByRole("button", { name: "Download PNG" }).click();
+
+    await expect.poll(
+      () => page.evaluate(() => window.__lastExportDataUrl || ""),
+      { timeout: 20000 }
+    ).toContain("data:image/png;base64,");
+    const png = Buffer.from((await page.evaluate(() => window.__lastExportDataUrl)).split(",")[1], "base64");
+    expect(png.readUInt32BE(16)).toBe(2064);
+    expect(png.readUInt32BE(20)).toBe(2752);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("refuses the 3D iPhone frame on an iPad canvas", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => window.ScreenshotStage.setState({ canvas: "ipad-13" }));
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportError || ""),
+    { timeout: 10000 }
+  ).toContain('frame: "none"');
+});
+
+test("CLI --canvas ipad-13 renders an iPad-sized PNG", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const source = path.join(dir, "source.png");
+  const output = path.join(dir, "output.png");
+
+  try {
+    await writeFile(source, Buffer.from(TINY_PNG_BASE64, "base64"));
+
+    const { stdout } = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--screenshot", source,
+      "--output", output,
+      "--canvas", "ipad-13",
+      "--state-json", JSON.stringify({ title: "iPad", subtitle: "Plain", frame: "none" })
+    ], { cwd: process.cwd(), timeout: 30000 });
+
+    expect(stdout).toContain("(2064x2752)");
+    const png = await readFile(output);
+    expect(png.readUInt32BE(16)).toBe(2064);
+    expect(png.readUInt32BE(20)).toBe(2752);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI --canvas rejects unknown presets and lists the valid ones", async () => {
+  const error = await execFileAsync("node", [
+    "scripts/render-screenshot.mjs",
+    "--canvas", "ipad-12.9",
+    "--screenshot", "package.json",
+    "--output", "/tmp/never.png"
+  ], { cwd: process.cwd(), timeout: 15000 }).then(() => null, (e) => e);
+
+  expect(error).not.toBeNull();
+  expect(error.code).toBe(1);
+  expect(String(error.stderr)).toContain("ipad-12.9");
+  expect(String(error.stderr)).toContain("ipad-13");
+  expect(String(error.stderr)).toContain("iphone-6.9");
 });
 
 test("CLI renders plain mode from scene state", async ({ baseURL }) => {

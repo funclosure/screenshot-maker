@@ -674,7 +674,7 @@
 <aside id="sidebar">
   <div class="brand">
     <h1>Screenshot Stage</h1>
-    <span>1290 × 2796</span>
+    <span id="canvasSizeLabel">1290 × 2796</span>
   </div>
 
   <fieldset>
@@ -836,7 +836,7 @@
 </main>
 
 <div id="exportBar">
-  <span><strong>Export mode</strong> · stage is true-size 1290 × 2796</span>
+  <span><strong>Export mode</strong> · stage is true-size <span id="exportSizeLabel">1290 × 2796</span></span>
   <button id="downloadPng" type="button">Download PNG</button>
   <button id="exitExport" type="button">Exit</button>
 </div>
@@ -883,11 +883,36 @@
     /* "iphone-3d" (default) or "none": plain rounded screenshot with a soft
        shadow — no device frame, no 3D model needed. */
     frame: "iphone-3d",
+    /* App Store slot preset; see CANVAS_PRESETS. */
+    canvas: "iphone-6.9",
     exporting: false
   };
 
   /* ============ Stage fitting ============ */
+  /* App Store Connect slots. Presets without a 3D device model require
+     frame: "none". Text sizes are defined at a 1290-wide reference canvas
+     and scale with canvas width (preview already does via cqw units). */
+  var CANVAS_PRESETS = {
+    "iphone-6.9": { w: 1290, h: 2796, hasPhoneModel: true },
+    "iphone-6.9-alt": { w: 1320, h: 2868, hasPhoneModel: true },
+    "ipad-13": { w: 2064, h: 2752, hasPhoneModel: false }
+  };
   var STAGE_W = 1290, STAGE_H = 2796;
+  var TEXT_REF_W = 1290;
+
+  function applyCanvas() {
+    var preset = CANVAS_PRESETS[state.canvas];
+    STAGE_W = preset.w;
+    STAGE_H = preset.h;
+    stage.style.width = STAGE_W + "px";
+    stage.style.height = STAGE_H + "px";
+    var label = STAGE_W + " × " + STAGE_H;
+    var sizeLabel = document.getElementById("canvasSizeLabel");
+    if (sizeLabel) sizeLabel.textContent = label;
+    var exportLabel = document.getElementById("exportSizeLabel");
+    if (exportLabel) exportLabel.textContent = label;
+    fitStage();
+  }
 
   function fitStage() {
     var pad = state.exporting ? 0 : 48;
@@ -915,8 +940,8 @@
   screenImg.addEventListener("load", applyFrameMode);
 
   function applyPhonePlacement() {
-    var tx = state.phoneOffset.x / 12.9;
-    var ty = state.phoneOffset.y / 12.9;
+    var tx = state.phoneOffset.x / (STAGE_W / 100);
+    var ty = state.phoneOffset.y / (STAGE_W / 100);
     /* Preview device CSS width is 56cqw; compensate so the preview matches
        the export's phoneWidthRatio sizing. */
     var previewScale = state.phoneScale * (state.phoneWidthRatio / 0.56);
@@ -1323,11 +1348,15 @@
 
       var uiFont = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       var titleFont = '"EB Garamond", Georgia, serif';
-      wrapText(state.title, "700 " + state.titleSize + "px " + titleFont, state.titleSize * 1.1);
-      y += state.subtitleSize * 0.9;
+      /* Text sizes are defined at a 1290-wide reference canvas; scale with
+         canvas width to match the cqw-based preview. */
+      var titlePx = state.titleSize * (STAGE_W / TEXT_REF_W);
+      var subtitlePx = state.subtitleSize * (STAGE_W / TEXT_REF_W);
+      wrapText(state.title, "700 " + titlePx + "px " + titleFont, titlePx * 1.1);
+      y += subtitlePx * 0.9;
       ctx.globalAlpha = 0.66;
-      ctx.letterSpacing = Math.round(state.subtitleSize * 0.14) + "px";
-      wrapText(String(state.subtitle).toUpperCase(), "500 " + state.subtitleSize + "px " + uiFont, state.subtitleSize * 1.4);
+      ctx.letterSpacing = Math.round(subtitlePx * 0.14) + "px";
+      wrapText(String(state.subtitle).toUpperCase(), "500 " + subtitlePx + "px " + uiFont, subtitlePx * 1.4);
       ctx.letterSpacing = "0px";
       ctx.globalAlpha = 1;
 
@@ -1350,6 +1379,9 @@
         ctx.closePath();
       }
 
+      if (state.frame !== "none" && !CANVAS_PRESETS[state.canvas].hasPhoneModel) {
+        throw new Error('Canvas "' + state.canvas + '" has no 3D device model yet — set frame: "none" (plain mode).');
+      }
       if (state.frame === "none") {
         /* Plain mode: the screenshot itself, rounded corners + soft shadow,
            at its own aspect ratio. No device body, no 3D model needed. */
@@ -1437,7 +1469,7 @@
       window.__lastExportDataUrl = url;
       var a = document.createElement("a");
       a.href = url;
-      a.download = "app-store-shot-1290x2796.png";
+      a.download = "app-store-shot-" + STAGE_W + "x" + STAGE_H + ".png";
       a.click();
     }
 
@@ -1515,6 +1547,8 @@
 
   function applySceneState(next) {
     if (!next || typeof next !== "object") return;
+    /* Canvas first: offset clamps below depend on the stage size. */
+    if (CANVAS_PRESETS[next.canvas]) state.canvas = next.canvas;
     if (["solid", "gradient", "image"].indexOf(next.bgMode) !== -1) state.bgMode = next.bgMode;
     if (typeof next.solid === "string") state.solid = next.solid;
     if (typeof next.bgImage === "string") state.bgImage = next.bgImage;
@@ -1528,8 +1562,11 @@
     if (typeof next.textColor === "string") state.textColor = next.textColor;
     if (["left", "center"].indexOf(next.align) !== -1) state.align = next.align;
     if (next.phoneOffset && typeof next.phoneOffset === "object") {
-      if (typeof next.phoneOffset.x === "number") state.phoneOffset.x = Math.round(Math.max(-480, Math.min(480, next.phoneOffset.x)));
-      if (typeof next.phoneOffset.y === "number") state.phoneOffset.y = Math.round(Math.max(-720, Math.min(720, next.phoneOffset.y)));
+      /* Same clamp ratios as the historical ±480/±720 at 1290×2796. */
+      var xMax = Math.round(CANVAS_PRESETS[state.canvas].w * 480 / 1290);
+      var yMax = Math.round(CANVAS_PRESETS[state.canvas].h * 720 / 2796);
+      if (typeof next.phoneOffset.x === "number") state.phoneOffset.x = Math.round(Math.max(-xMax, Math.min(xMax, next.phoneOffset.x)));
+      if (typeof next.phoneOffset.y === "number") state.phoneOffset.y = Math.round(Math.max(-yMax, Math.min(yMax, next.phoneOffset.y)));
     }
     if (typeof next.phoneScale === "number") state.phoneScale = Math.max(0.5, Math.min(1.5, next.phoneScale));
     if (typeof next.phoneWidthRatio === "number") state.phoneWidthRatio = Math.max(0.4, Math.min(0.9, next.phoneWidthRatio));
@@ -1542,6 +1579,7 @@
       window.ScreenshotStage.setModelAppearance(next.modelAppearance);
     }
     syncControlsFromState();
+    applyCanvas();
     applyBackground();
     applyText();
     applyPhonePlacement();
@@ -1575,6 +1613,8 @@
         phoneWidthRatio: Number(state.phoneWidthRatio.toFixed(3)),
         allow2DFallback: state.allow2DFallback,
         frame: state.frame,
+        canvas: state.canvas,
+        canvasSize: { width: STAGE_W, height: STAGE_H },
         rotation: rotation,
         displayRect: displayRect,
         modelAppearance: modelAppearance
@@ -1587,6 +1627,7 @@
   });
 
   /* ============ Init ============ */
+  applyCanvas();
   applyBackground();
   applyText();
   applyPhonePlacement();
