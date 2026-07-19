@@ -130,6 +130,13 @@ npm test
 
 ## Model credits
 
+- iPhone 17 Pro: ["Iphone 17 pro"](https://sketchfab.com/3d-models/iphone-17-pro-4aeeeb41f9d14f96bb3f2589edc3edac)
+  by [Ibrahim.Bhl](https://sketchfab.com/Ibrahim.Bhl), licensed under
+  [CC Attribution](https://creativecommons.org/licenses/by/4.0/). Committed
+  as the raw download (`iphone-17-pro/source/iphone 17_4.glb`) and a
+  derivative (`iphone-17-pro-clean.glb`, via
+  `scripts/create-clean-iphone-model.mjs`) with a few internal meshes
+  removed.
 - iPad Pro 13" M4: ["Ipad pro 13in silver m4"](https://sketchfab.com/3d-models/ipad-pro-13in-silver-m4-8a113340443e49d3b905ab9f0b45efd6)
   by [polyman Studio](https://sketchfab.com/Polyman_3D), licensed under
   [CC Attribution](https://creativecommons.org/licenses/by/4.0/). The
