@@ -53,36 +53,43 @@ future session can act without re-discovering context.
   the screenshot at its own aspect with rounded corners and a soft shadow —
   no device body, no 3D model needed. `canvas` preset / `--canvas` flag:
   `iphone-6.9` (1290×2796, default), `iphone-6.9-alt` (1320×2868),
-  `ipad-13` (2064×2752, refuses the iPhone frame with a clear error).
-  Text sizes are 1290-reference and scale with canvas width (matching the
-  cqw preview). Presets guarantee valid ASC slot sizes, which mostly
-  resolves the old "warn on non-slot output" item.
+  `ipad-13` (2064×2752). Text sizes are 1290-reference and scale with
+  canvas width (matching the cqw preview). Presets guarantee valid ASC
+  slot sizes, which mostly resolves the old "warn on non-slot output" item.
+- **iPad 3D model** (July 2026). `ipad-13` renders framed with a real iPad
+  Pro 13" M4 model (CC-BY, credited in README). Pipeline:
+  `scripts/create-clean-ipad-model.mjs` extracts the standalone iPad from
+  the raw Sketchfab GLB (which also has a Pencil and an empty Magic
+  Keyboard), straightens it via PCA on the display quad (hash names from
+  the USDZ->GLB conversion are stable, keyed on `EjCaatfcGdAQBho`), and
+  renames the display material to `Screen_BG`. `phone-stage.js` gained a
+  `DEVICE_MODELS` registry + on-demand `setDeviceModel` swap (cached);
+  `createScreenPlane` measures precise (per-vertex) bounds because the
+  clean model's straightening rotation lives on a wrapper node; the
+  synthetic Dynamic Island and screen corner radius are per-device.
+  ASC upload device-type: `IPAD_PRO_3GEN_129` / `APP_IPAD_PRO_3GEN_129`.
 
 ## TODO (priority order)
 
-1. **iPad 3D model.** Plain mode covers iPad sets today; a real iPad model
-   (like the iPhone GLB pipeline in `scripts/create-clean-iphone-model.mjs`)
-   would let `ipad-13` render framed. ASC device-type for upload:
-   `IPAD_PRO_3GEN_129` / display `APP_IPAD_PRO_3GEN_129`.
-2. **Theme presets.** Agents hand-pick `gradA/gradB/textColor` every run.
+1. **Theme presets.** Agents hand-pick `gradA/gradB/textColor` every run.
    Named palettes (`theme: "warm-light" | "dark" | {brand: "#E4573D"}`)
    deriving gradient + text color would remove the most error-prone knob.
    The warm-light set used in production: `#FDEEE7 → #F6D3C2`, angle 165,
    text `#2B2B2B`, titleSize 82, subtitleSize 40.
-3. **Scene validation in the stage itself.** The CLI now warns on
+2. **Scene validation in the stage itself.** The CLI now warns on
    unrecognized keys (by diffing against `getState()`), but in-browser
    `setState` callers still get silent ignores. Publish a JSON schema next
    to `examples/scene.json` and/or have `applySceneState` return the list
    of ignored keys.
-4. **ASC-size awareness in the CLI.** Input-aspect mismatch now warns; also
+3. **ASC-size awareness in the CLI.** Input-aspect mismatch now warns; also
    warn when the output matches no App Store slot (embed the small size
    table: iPhone 6.9/6.7 = 1290×2796 or 1320×2868; iPad 13 = 2064×2752).
-5. **Status-bar hygiene.** Document (or optionally composite) a clean 9:41
+4. **Status-bar hygiene.** Document (or optionally composite) a clean 9:41
    status bar; raw captures often carry real time/battery. Companion note:
    `xcrun simctl status_bar booted override --time "9:41" ...` before
    capture, and the simulator Dynamic Island renders a black pill for ~40s
    after launch — wait before capturing.
-6. **Golden-image test for export.** `npm test` covers the stage; add a
+5. **Golden-image test for export.** `npm test` covers the stage; add a
    batch render against a checked-in raw PNG and compare IHDR + a few
    sampled pixels, so refactors of the export path can't silently change
    output geometry.

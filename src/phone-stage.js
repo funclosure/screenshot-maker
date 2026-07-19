@@ -21,6 +21,13 @@ const DEFAULT_MODEL_APPEARANCE = {
   showFrontCamera: false,
   reflection: 0.08
 };
+// Device models per canvas family. Each clean GLB is portrait, centered,
+// facing +Z, with its display material named Screen_BG.
+const DEVICE_MODELS = {
+  iphone: { url: MODEL_URL, island: true, screenCornerRadius: SCREEN_CORNER_RADIUS },
+  ipad: { url: "/ipad-pro-13/source/ipad-pro-13-clean.glb", island: false, screenCornerRadius: 0.045 }
+};
+let currentScreenCornerRadius = SCREEN_CORNER_RADIUS;
 
 let screenPlaneRig = null;
 
@@ -61,33 +68,75 @@ async function initPhoneStage() {
   scene.add(group);
 
   const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(MODEL_URL);
-  const model = gltf.scene;
-  normalizeModel(model);
-  applyScreenMaterials(model);
-  group.add(model);
-
-  screenPlaneRig = createScreenPlane(model);
-  group.add(screenPlaneRig.mesh);
-
   const rotation = {
     x: THREE.MathUtils.degToRad(-8),
     y: THREE.MathUtils.degToRad(10),
     z: 0
   };
   const modelAppearance = { ...DEFAULT_MODEL_APPEARANCE };
-  const modelParts = collectModelParts(model);
-  applyModelAppearance(modelParts, modelAppearance);
+  const stage = { renderer, scene, camera, group, model: null, rotation, modelAppearance, modelParts: null, resize };
+  const deviceCache = new Map();
+  let currentEntry = null;
+  let currentDeviceKind = null;
+
+  async function loadDevice(kind) {
+    if (kind === currentDeviceKind) return;
+    const config = DEVICE_MODELS[kind];
+    if (!config) throw new Error(`Unknown device model: ${kind}`);
+    canvas.dataset.modelReady = "false";
+    document.body.classList.remove("model-ready");
+    currentScreenCornerRadius = config.screenCornerRadius;
+    let entry = deviceCache.get(kind);
+    if (!entry) {
+      const gltf = await loader.loadAsync(config.url);
+      const model = gltf.scene;
+      normalizeModel(model);
+      applyScreenMaterials(model);
+      group.add(model);
+      // The rig's position is computed in world space and the mesh is added
+      // to the (user-rotated) group, so level the group while measuring.
+      const prevRotation = [group.rotation.x, group.rotation.y, group.rotation.z];
+      group.rotation.set(0, 0, 0);
+      group.updateMatrixWorld(true);
+      const rig = createScreenPlane(model);
+      rig.islandEnabled = config.island;
+      rig.island.visible = config.island;
+      group.rotation.set(prevRotation[0], prevRotation[1], prevRotation[2]);
+      group.add(rig.mesh);
+      entry = { model, rig, parts: collectModelParts(model) };
+      deviceCache.set(kind, entry);
+    } else {
+      group.add(entry.model);
+      group.add(entry.rig.mesh);
+    }
+    if (currentEntry && currentEntry !== entry) {
+      group.remove(currentEntry.model);
+      group.remove(currentEntry.rig.mesh);
+    }
+    currentEntry = entry;
+    currentDeviceKind = kind;
+    stage.model = entry.model;
+    stage.modelParts = entry.parts;
+    screenPlaneRig = entry.rig;
+    applyModelAppearance(entry.parts, modelAppearance);
+    if (screenImg && screenImg.src && screenImg.naturalWidth > 0) {
+      updateScreenFromImage(screenImg);
+    }
+    canvas.dataset.modelReady = "true";
+    document.body.classList.add("model-ready");
+  }
+  stage.loadDevice = loadDevice;
+
+  await loadDevice("iphone");
+
   const drag = {
     active: false,
     lastX: 0,
     lastY: 0
   };
 
-  canvas.dataset.modelReady = "true";
-  document.body.classList.add("model-ready");
   setRotationDataset(rotation);
-  exposePhoneApi({ renderer, scene, camera, group, model, rotation, modelAppearance, modelParts, resize });
+  exposePhoneApi(stage);
 
   canvas.addEventListener("pointerdown", (event) => {
     if (window.ScreenshotStage && window.ScreenshotStage.isPanningPhone && window.ScreenshotStage.isPanningPhone()) {
@@ -195,6 +244,10 @@ function exposePhoneApi(stage) {
     },
     getDisplayRect() {
       return getDisplayRect();
+    },
+    async setDeviceModel(kind) {
+      await stage.loadDevice(kind);
+      return kind;
     },
     getScreenPlaneInfo() {
       if (!screenPlaneRig) return null;
@@ -427,7 +480,9 @@ function createScreenPlane(model) {
   });
   if (!screenMesh) throw new Error(`${SCREEN_MATERIAL_NAME} mesh not found in model`);
 
-  const box = new THREE.Box3().setFromObject(screenMesh);
+  // precise=true measures per-vertex: the iPad model's meshes carry a baked
+  // straightening rotation, so corner-transformed local boxes would inflate.
+  const box = new THREE.Box3().setFromObject(screenMesh, true);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const aperture = {
@@ -481,6 +536,8 @@ function fitIsland(rig, planeWidth, planeHeight) {
   rig.island.geometry.dispose();
   rig.island.geometry = makeCapsuleGeometry(width / planeWidth, height / planeHeight, (height / 2) / planeWidth);
   rig.island.position.set(0, 0.5 - ISLAND_CENTER_Y_RATIO, 0.001);
+  // Devices without a Dynamic Island (iPad) keep the synthetic island hidden.
+  rig.island.visible = rig.islandEnabled !== false;
 }
 
 function makeCapsuleGeometry(width, height, radiusX) {
@@ -547,7 +604,7 @@ function makePlaneTexture(image) {
 
 function roundCanvasClip(ctx, c) {
   ctx.beginPath();
-  roundedRectPath(ctx, 0, 0, c.width, c.height, c.width * SCREEN_CORNER_RADIUS);
+  roundedRectPath(ctx, 0, 0, c.width, c.height, c.width * currentScreenCornerRadius);
   ctx.clip();
 }
 

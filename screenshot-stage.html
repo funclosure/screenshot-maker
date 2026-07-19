@@ -892,10 +892,12 @@
   /* App Store Connect slots. Presets without a 3D device model require
      frame: "none". Text sizes are defined at a 1290-wide reference canvas
      and scale with canvas width (preview already does via cqw units). */
+  /* bodyAspect = device body height / width; drives export sizing and the
+     preview canvas shape. iPad value measured from the cleaned model. */
   var CANVAS_PRESETS = {
-    "iphone-6.9": { w: 1290, h: 2796, hasPhoneModel: true },
-    "iphone-6.9-alt": { w: 1320, h: 2868, hasPhoneModel: true },
-    "ipad-13": { w: 2064, h: 2752, hasPhoneModel: false }
+    "iphone-6.9": { w: 1290, h: 2796, hasPhoneModel: true, device: "iphone", bodyAspect: 146.6 / 71.6 },
+    "iphone-6.9-alt": { w: 1320, h: 2868, hasPhoneModel: true, device: "iphone", bodyAspect: 146.6 / 71.6 },
+    "ipad-13": { w: 2064, h: 2752, hasPhoneModel: true, device: "ipad", bodyAspect: 1.2911 }
   };
   var STAGE_W = 1290, STAGE_H = 2796;
   var TEXT_REF_W = 1290;
@@ -911,6 +913,15 @@
     if (sizeLabel) sizeLabel.textContent = label;
     var exportLabel = document.getElementById("exportSizeLabel");
     if (exportLabel) exportLabel.textContent = label;
+    /* Preview canvas keeps the same on-screen device height rule as the
+       iPhone original: width 100cqw, height 56cqw * bodyAspect. */
+    var phoneCanvasEl = document.getElementById("phoneCanvas");
+    if (phoneCanvasEl) phoneCanvasEl.style.aspectRatio = String(1 / (0.56 * preset.bodyAspect));
+    if (preset.device && window.ScreenshotStage && window.ScreenshotStage.setDeviceModel) {
+      window.ScreenshotStage.setDeviceModel(preset.device).catch(function (error) {
+        console.error("Device model failed to load", error);
+      });
+    }
     fitStage();
   }
 
@@ -1362,7 +1373,7 @@
 
       /* ---- device ---- */
       var dw = STAGE_W * state.phoneWidthRatio * state.phoneScale;
-      var dh = dw * (146.6 / 71.6);
+      var dh = dw * CANVAS_PRESETS[state.canvas].bodyAspect;
       var dx = (STAGE_W - dw) / 2 + state.phoneOffset.x;
       var dy = STAGE_H * 0.11 /* caption top */ + STAGE_H * 0.07 /* gap */ +
                Math.max(y - STAGE_H * 0.11, 0); /* below text */

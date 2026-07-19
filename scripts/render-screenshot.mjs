@@ -30,7 +30,7 @@ function usage() {
     "  --canvas <preset>    App Store slot preset (overrides scene state):",
     "                         iphone-6.9     1290x2796 (default; also the 6.7\" slot)",
     "                         iphone-6.9-alt 1320x2868",
-    "                         ipad-13        2064x2752 (requires frame: \"none\")",
+    "                         ipad-13        2064x2752 (framed with a 3D iPad Pro 13\")",
     "  --headed             Show Chromium while rendering.",
     "",
     "Scene state keys (all optional; unrecognized keys are warned about and ignored):",
@@ -274,6 +274,19 @@ async function renderOne(page, { screenshotPath, outputPath, state }) {
 
   if (state) {
     await applyState(page, state);
+  }
+  // A canvas change can swap the device model (iPhone <-> iPad), which loads
+  // on demand — wait for readiness unless this render doesn't use a model.
+  if (!state || state.frame !== "none") {
+    try {
+      await page.waitForFunction(
+        () => document.getElementById("phoneCanvas")?.dataset.modelReady === "true",
+        null,
+        { timeout: 20000 }
+      );
+    } catch {
+      throw new Error("The 3D device model did not become ready within 20s after applying the scene state — see [stage] lines above.");
+    }
   }
 
   // Reset the export markers so a stale result from a previous item can

@@ -574,18 +574,92 @@ test("exports an iPad 13-inch canvas in plain mode", async ({ page }) => {
   }
 });
 
-test("refuses the 3D iPhone frame on an iPad canvas", async ({ page }) => {
+test("exports a framed iPad from the 3D model on the ipad-13 canvas", async ({ page }) => {
   await page.goto("/screenshot-stage.html");
   await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
 
   await page.evaluate(() => window.ScreenshotStage.setState({ canvas: "ipad-13" }));
+  // The iPad model loads on demand; the stage flags readiness per device.
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 20000 });
+
+  // The iPad has no Dynamic Island: the synthetic island must be hidden.
+  expect(await page.evaluate(() => window.ScreenshotStage.getScreenPlaneInfo().island.visible)).toBe(false);
+
+  await page.evaluate(() => {
+    window.__phoneRenderCalls = 0;
+    const original = window.ScreenshotStage.renderPhone;
+    window.ScreenshotStage.renderPhone = async (options) => {
+      window.__phoneRenderCalls += 1;
+      return original(options);
+    };
+  });
+
   await page.getByRole("button", { name: "Enter export mode" }).click();
   await page.getByRole("button", { name: "Download PNG" }).click();
 
   await expect.poll(
-    () => page.evaluate(() => window.__lastExportError || ""),
-    { timeout: 10000 }
-  ).toContain('frame: "none"');
+    () => page.evaluate(() => window.__lastExportDataUrl || ""),
+    { timeout: 20000 }
+  ).toContain("data:image/png;base64,");
+  expect(await page.evaluate(() => window.__lastExportError || "")).toBe("");
+  expect(await page.evaluate(() => window.__phoneRenderCalls)).toBe(1);
+  const png = Buffer.from((await page.evaluate(() => window.__lastExportDataUrl)).split(",")[1], "base64");
+  expect(png.readUInt32BE(16)).toBe(2064);
+  expect(png.readUInt32BE(20)).toBe(2752);
+});
+
+test("swaps back to the iPhone model after an iPad canvas", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => window.ScreenshotStage.setState({ canvas: "ipad-13" }));
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 20000 });
+  await page.evaluate(() => window.ScreenshotStage.setState({ canvas: "iphone-6.9" }));
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 20000 });
+
+  // iPhone rig again: island is back.
+  expect(await page.evaluate(() => window.ScreenshotStage.getScreenPlaneInfo().island.visible)).toBe(true);
+
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportDataUrl || ""),
+    { timeout: 20000 }
+  ).toContain("data:image/png;base64,");
+  const png = Buffer.from((await page.evaluate(() => window.__lastExportDataUrl)).split(",")[1], "base64");
+  expect(png.readUInt32BE(16)).toBe(1290);
+  expect(png.readUInt32BE(20)).toBe(2796);
+});
+
+test("CLI batch renders framed iPhone and iPad items in one run", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const manifest = path.join(dir, "manifest.json");
+
+  try {
+    await writeFile(path.join(dir, "source.png"), Buffer.from(TINY_PNG_BASE64, "base64"));
+    await writeFile(manifest, JSON.stringify({
+      base: { title: "Mixed", subtitle: "Set" },
+      items: [
+        { screenshot: "source.png", output: "out/iphone.png" },
+        { screenshot: "source.png", output: "out/ipad.png", state: { canvas: "ipad-13" } }
+      ]
+    }));
+
+    await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--batch", manifest
+    ], { cwd: process.cwd(), timeout: 90000 });
+
+    const iphone = await readFile(path.join(dir, "out/iphone.png"));
+    expect(iphone.readUInt32BE(16)).toBe(1290);
+    expect(iphone.readUInt32BE(20)).toBe(2796);
+    const ipad = await readFile(path.join(dir, "out/ipad.png"));
+    expect(ipad.readUInt32BE(16)).toBe(2064);
+    expect(ipad.readUInt32BE(20)).toBe(2752);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("CLI --canvas ipad-13 renders an iPad-sized PNG", async ({ baseURL }) => {

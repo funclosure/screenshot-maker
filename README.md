@@ -105,8 +105,10 @@ Scene JSON can control:
   with a soft shadow, no device frame or 3D model (works for iPad captures).
 - `canvas`: App Store slot preset — `iphone-6.9` (1290 × 2796, default; also
   the 6.7" slot), `iphone-6.9-alt` (1320 × 2868), `ipad-13` (2064 × 2752,
-  requires `frame: "none"` until an iPad model exists). Also available as
-  the CLI flag `--canvas <preset>`, which overrides scene state.
+  framed with a 3D iPad Pro 13" model; `frame: "none"` also works). Also
+  available as the CLI flag `--canvas <preset>`, which overrides scene
+  state. Device models load on demand, so one batch can mix iPhone and
+  iPad items.
 
 Sizing note: the export **re-renders the 3D model** at the target pixel size,
 so large `phoneWidthRatio`/`phoneScale` values stay crisp — only the live
@@ -125,3 +127,13 @@ to pan the phone placement.
 ```sh
 npm test
 ```
+
+## Model credits
+
+- iPad Pro 13" M4: ["Ipad pro 13in silver m4"](https://sketchfab.com/3d-models/ipad-pro-13in-silver-m4-8a113340443e49d3b905ab9f0b45efd6)
+  by [polyman Studio](https://sketchfab.com/Polyman_3D), licensed under
+  [CC Attribution](https://creativecommons.org/licenses/by/4.0/). The
+  committed files are the raw download (`ipad-pro-13/source/ipad-pro-13-raw.glb`)
+  and a derivative (`ipad-pro-13-clean.glb`, via
+  `scripts/create-clean-ipad-model.mjs`) that extracts the standalone iPad,
+  straightens it, and renames its display material.
