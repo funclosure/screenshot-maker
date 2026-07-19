@@ -94,6 +94,8 @@ Scene JSON can control:
 - `phoneWidthRatio`: fraction of stage width the phone body occupies
   (default `0.72`, clamped `0.4...0.9`). This is the primary size knob.
 - `phoneScale`: multiplier on top of `phoneWidthRatio`, clamped `0.5...1.5`.
+- `captionTop`: caption block top as a fraction of canvas height
+  (default `0.11`, clamped `0.02...0.35`); smaller starts the title higher.
 - `bgMode`, `solid`, `gradA`, `gradB`, `gradAngle`: background;
   `bgImage` (data URL) with `bgMode: "image"`.
 - `title`, `subtitle`, `titleSize`, `subtitleSize`, `textColor`, `align`: text.
