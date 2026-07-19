@@ -574,6 +574,38 @@ test("exports an iPad 13-inch canvas in plain mode", async ({ page }) => {
   }
 });
 
+test("captionTop moves the caption block in export and preview", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => {
+    window.__drawnTexts = [];
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+      window.__drawnTexts.push({ text: String(text), y });
+      return original.call(this, text, x, y, ...rest);
+    };
+    window.ScreenshotStage.setState({ title: "TopTest", subtitle: "sub", captionTop: 0.05 });
+  });
+
+  expect(await page.evaluate(() => window.ScreenshotStage.getState().captionTop)).toBe(0.05);
+  await expect(page.locator("#caption")).toHaveCSS("margin-top", /.+/);
+  const marginPercent = await page.evaluate(() =>
+    document.getElementById("caption").style.marginTop
+  );
+  expect(marginPercent).toBe("5cqh");
+
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportDataUrl || ""),
+    { timeout: 20000 }
+  ).toContain("data:image/png;base64,");
+
+  const titleDraw = await page.evaluate(() => window.__drawnTexts.find((t) => t.text === "TopTest"));
+  expect(titleDraw.y).toBeCloseTo(2796 * 0.05, 0);
+});
+
 test("export wraps CJK titles without needing injected spaces", async ({ page }) => {
   await page.goto("/screenshot-stage.html");
   await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });

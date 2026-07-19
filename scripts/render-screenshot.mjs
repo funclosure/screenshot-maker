@@ -48,6 +48,8 @@ function usage() {
     "  phoneWidthRatio (0.4-0.9)   Fraction of stage width the phone occupies (default 0.72).",
     "  phoneScale (0.5-1.5)        Extra multiplier on top of phoneWidthRatio.",
     "  phoneOffset                 {x, y} phone pan in output pixels.",
+    "  captionTop (0.02-0.35)      Caption block top as a fraction of canvas height",
+    "                              (default 0.11; smaller = text starts higher).",
     "  allow2DFallback             Default false: export fails when the 3D model is not",
     "                              ready instead of drawing a flat 2D phone.",
     "  canvas                      Slot preset name (same values as --canvas).",

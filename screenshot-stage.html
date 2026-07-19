@@ -878,6 +878,8 @@
        values stay crisp. Preview width is 56cqw, compensated in
        applyPhonePlacement. */
     phoneWidthRatio: 0.72,
+    /* Caption block top as a fraction of canvas height. */
+    captionTop: 0.11,
     /* The 3D model is the default export path. The flat 2D-drawn phone is
        opt-in only, so an unready model fails the export instead of silently
        degrading a set. */
@@ -1094,6 +1096,8 @@
     subtitleEl.style.fontSize = (state.subtitleSize / 12.9) + "cqw";
     caption.style.color = state.textColor;
     caption.style.textAlign = state.align;
+    /* Mirror the export's caption top (fraction of canvas height). */
+    caption.style.marginTop = (+(state.captionTop * 100).toFixed(4)) + "cqh";
   }
 
   $("titleInput").addEventListener("input", function (e) {
@@ -1336,7 +1340,7 @@
       /* ---- caption ---- */
       var capW = STAGE_W * 0.84;
       var capX = (STAGE_W - capW) / 2;
-      var y = STAGE_H * 0.11;
+      var y = STAGE_H * state.captionTop;
       ctx.fillStyle = state.textColor;
       ctx.textBaseline = "top";
 
@@ -1393,8 +1397,8 @@
       var dw = STAGE_W * state.phoneWidthRatio * state.phoneScale;
       var dh = dw * CANVAS_PRESETS[state.canvas].bodyAspect;
       var dx = (STAGE_W - dw) / 2 + state.phoneOffset.x;
-      var dy = STAGE_H * 0.11 /* caption top */ + STAGE_H * 0.07 /* gap */ +
-               Math.max(y - STAGE_H * 0.11, 0); /* below text */
+      var dy = STAGE_H * state.captionTop /* caption top */ + STAGE_H * 0.07 /* gap */ +
+               Math.max(y - STAGE_H * state.captionTop, 0); /* below text */
       dy = Math.max(dy, y + STAGE_H * 0.05) + state.phoneOffset.y;
       var r = STAGE_W * 0.086 * state.phoneScale;
 
@@ -1599,6 +1603,7 @@
     }
     if (typeof next.phoneScale === "number") state.phoneScale = Math.max(0.5, Math.min(1.5, next.phoneScale));
     if (typeof next.phoneWidthRatio === "number") state.phoneWidthRatio = Math.max(0.4, Math.min(0.9, next.phoneWidthRatio));
+    if (typeof next.captionTop === "number") state.captionTop = Math.max(0.02, Math.min(0.35, next.captionTop));
     if (typeof next.allow2DFallback === "boolean") state.allow2DFallback = next.allow2DFallback;
     if (["iphone-3d", "none"].indexOf(next.frame) !== -1) state.frame = next.frame;
     if (next.rotation && window.ScreenshotStage && window.ScreenshotStage.setRotation) {
@@ -1640,6 +1645,7 @@
         phoneOffset: { x: state.phoneOffset.x, y: state.phoneOffset.y },
         phoneScale: Number(state.phoneScale.toFixed(3)),
         phoneWidthRatio: Number(state.phoneWidthRatio.toFixed(3)),
+        captionTop: Number(state.captionTop.toFixed(3)),
         allow2DFallback: state.allow2DFallback,
         frame: state.frame,
         canvas: state.canvas,
