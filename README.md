@@ -61,10 +61,10 @@ npm run render -- --batch manifest.json
   "items": [
     { "screenshot": "raw/editor.png", "output": "framed/01-editor.png",
       "state": { "title": "Turn moments into cards", "subtitle": "Style any quote" } },
-    { "screenshot": "raw/home.png", "output": "framed/{locale}/02-home.png",
+    { "screenshot": "raw/capsule.png", "output": "framed/{locale}/02-capsule.png",
       "locales": {
-        "en-US": { "title": "See where your money goes", "subtitle": "Insights" },
-        "ja":    { "title": "お金の流れが見える", "subtitle": "インサイト" }
+        "en-US": { "title": "Seal it in a capsule", "subtitle": "Open it later" },
+        "zh":    { "title": "封存进时光胶囊", "subtitle": "留待日后开启" }
       } }
   ]
 }
