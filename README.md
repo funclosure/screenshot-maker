@@ -63,8 +63,8 @@ npm run render -- --batch manifest.json
       "state": { "title": "Turn moments into cards", "subtitle": "Style any quote" } },
     { "screenshot": "raw/capsule.png", "output": "framed/{locale}/02-capsule.png",
       "locales": {
-        "en-US": { "title": "Seal it in a capsule", "subtitle": "Open it later" },
-        "zh":    { "title": "封存进时光胶囊", "subtitle": "留待日后开启" }
+        "en-US":   { "title": "Seal it in a capsule", "subtitle": "Open it later" },
+        "zh-Hant": { "title": "封存進時光膠囊", "subtitle": "留待日後開啟" }
       } }
   ]
 }
