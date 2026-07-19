@@ -574,6 +574,69 @@ test("exports an iPad 13-inch canvas in plain mode", async ({ page }) => {
   }
 });
 
+test("export wraps CJK titles without needing injected spaces", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => {
+    window.__drawnTexts = [];
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      window.__drawnTexts.push(String(text));
+      return original.call(this, text, ...rest);
+    };
+    window.ScreenshotStage.setState({
+      // 24 CJK chars, no spaces: far too wide for one caption line at size 96.
+      title: "把每一個瞬間都封存進一顆美麗的時光膠囊裡慢慢回味珍藏",
+      subtitle: "sub",
+      titleSize: 96
+    });
+  });
+
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportDataUrl || ""),
+    { timeout: 20000 }
+  ).toContain("data:image/png;base64,");
+
+  const titleLines = await page.evaluate(() =>
+    window.__drawnTexts.filter((t) => t.includes("瞬間") || t.includes("膠囊") || t.includes("回味") || t.includes("把每"))
+  );
+  expect(titleLines.length).toBeGreaterThanOrEqual(2);
+  for (const line of titleLines) expect(line).not.toContain(" ");
+});
+
+test("export honors manual line breaks in the title", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => {
+    window.__drawnTexts = [];
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      window.__drawnTexts.push(String(text));
+      return original.call(this, text, ...rest);
+    };
+    window.ScreenshotStage.setState({
+      title: "Write it.\nPeel it.\nLet it go.",
+      subtitle: "sub"
+    });
+  });
+
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportDataUrl || ""),
+    { timeout: 20000 }
+  ).toContain("data:image/png;base64,");
+
+  const drawn = await page.evaluate(() => window.__drawnTexts);
+  expect(drawn).toContain("Write it.");
+  expect(drawn).toContain("Peel it.");
+  expect(drawn).toContain("Let it go.");
+});
+
 test("exports a framed iPad from the 3D model on the ipad-13 canvas", async ({ page }) => {
   await page.goto("/screenshot-stage.html");
   await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });

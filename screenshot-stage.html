@@ -431,6 +431,7 @@
     letter-spacing: -0.005em;
     line-height: 1.1;
     overflow-wrap: break-word;
+    white-space: pre-line; /* \n in the title is a manual line break */
   }
   #subtitleEl {
     margin-top: 2.2cqw;
@@ -440,6 +441,7 @@
     text-transform: uppercase;
     opacity: 0.66;
     overflow-wrap: break-word;
+    white-space: pre-line;
   }
 
   /* ---- Device ---- */
@@ -1338,16 +1340,32 @@
       ctx.fillStyle = state.textColor;
       ctx.textBaseline = "top";
 
+      /* CJK chars (and fullwidth punctuation) are single tokens so unspaced
+         Chinese/Japanese wraps naturally; \n forces a line break. */
+      var CJK_TOKEN = /[⺀-鿿豈-﫿＀-￯　-〿]/;
+      function tokenizeCaption(text) {
+        return String(text).match(
+          /[⺀-鿿豈-﫿＀-￯　-〿]|[^\s⺀-鿿豈-﫿＀-￯　-〿]+/g
+        ) || [];
+      }
       function wrapText(text, font, lineHeight) {
         ctx.font = font;
-        var words = text.split(" "), line = "", lines = [];
-        for (var i = 0; i < words.length; i++) {
-          var test = line ? line + " " + words[i] : words[i];
-          if (ctx.measureText(test).width > capW && line) {
-            lines.push(line); line = words[i];
-          } else { line = test; }
-        }
-        if (line) lines.push(line);
+        var lines = [];
+        String(text).split("\n").forEach(function (hardLine) {
+          var tokens = tokenizeCaption(hardLine);
+          var line = "", prevCJK = false;
+          for (var i = 0; i < tokens.length; i++) {
+            var token = tokens[i];
+            var isCJK = CJK_TOKEN.test(token);
+            var joiner = line && !prevCJK && !isCJK ? " " : "";
+            var test = line + joiner + token;
+            if (ctx.measureText(test).width > capW && line) {
+              lines.push(line); line = token;
+            } else { line = test; }
+            prevCJK = isCJK;
+          }
+          if (line) lines.push(line);
+        });
         lines.forEach(function (ln) {
           var x = state.align === "center"
             ? capX + (capW - ctx.measureText(ln).width) / 2
