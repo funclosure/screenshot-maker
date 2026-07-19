@@ -126,6 +126,26 @@ Known gaps and next improvements live in `docs/agent-backlog.md`.
 In the browser preview, drag the phone to rotate it. Hold Space while dragging
 to pan the phone placement.
 
+## AI enhancement layer (optional)
+
+With a Gemini API key, rendered screenshots can go through one more pass
+that enriches the flat background (paper texture, light, tasteful garnish)
+and makes the device pop — while keeping captions, layout, and exact
+dimensions:
+
+```sh
+export GEMINI_API_KEY=...   # https://aistudio.google.com/apikey
+node scripts/enhance-screenshot.mjs --input framed/en-US        # whole folder
+node scripts/enhance-screenshot.mjs --input shot.png --output shot-final.png
+```
+
+Defaults: `gemini-3-pro-image-preview` at 2K (use `--model flash` for the
+cheaper `gemini-2.5-flash-image`); custom art direction via `--prompt` /
+`--prompt-file`. Non-PNG or off-size model output is converted and resized
+back to the source's exact slot size automatically. Enhancement is
+generative — always review the output before uploading. See
+`node scripts/enhance-screenshot.mjs --help` for the full contract.
+
 ## Test
 
 ```sh

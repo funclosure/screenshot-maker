@@ -929,6 +929,159 @@ test("CLI --gallery writes an HTML contact sheet of the rendered set", async ({ 
   }
 });
 
+test("enhance CLI --help documents the contract", async () => {
+  const { stdout } = await execFileAsync("node", [
+    "scripts/enhance-screenshot.mjs", "--help"
+  ], { cwd: process.cwd(), timeout: 15000 });
+
+  for (const term of ["--input", "--output", "--model", "--prompt", "GEMINI_API_KEY"]) {
+    expect(stdout).toContain(term);
+  }
+});
+
+test("enhance CLI fails clearly without an API key", async () => {
+  const error = await execFileAsync("node", [
+    "scripts/enhance-screenshot.mjs", "--input", "package.json"
+  ], {
+    cwd: process.cwd(),
+    timeout: 15000,
+    env: { ...process.env, GEMINI_API_KEY: "", GOOGLE_API_KEY: "" }
+  }).then(() => null, (e) => e);
+
+  expect(error).not.toBeNull();
+  expect(error.code).toBe(1);
+  expect(String(error.stderr)).toContain("GEMINI_API_KEY");
+});
+
+test("enhance CLI rejects unknown options with a suggestion", async () => {
+  const error = await execFileAsync("node", [
+    "scripts/enhance-screenshot.mjs", "--inpt", "x.png"
+  ], { cwd: process.cwd(), timeout: 15000 }).then(() => null, (e) => e);
+
+  expect(error).not.toBeNull();
+  expect(String(error.stderr)).toContain("Unknown option: --inpt");
+  expect(String(error.stderr)).toContain("--input");
+});
+
+test("enhance CLI round-trips an image through the API", async () => {
+  const http = await import("node:http");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-enhance-"));
+  const input = path.join(dir, "in.png");
+  const output = path.join(dir, "out.png");
+
+  // Serve a fake Gemini generateContent endpoint returning a valid tiny PNG.
+  const requests = [];
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      requests.push({ url: req.url, body: JSON.parse(body) });
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({
+        candidates: [{
+          content: {
+            parts: [{ inlineData: { mimeType: "image/png", data: TINY_PNG_BASE64 } }]
+          }
+        }]
+      }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+
+  try {
+    await writeFile(input, Buffer.from(TINY_PNG_BASE64, "base64"));
+
+    const { stdout } = await execFileAsync("node", [
+      "scripts/enhance-screenshot.mjs",
+      "--input", input,
+      "--output", output
+    ], {
+      cwd: process.cwd(),
+      timeout: 30000,
+      env: {
+        ...process.env,
+        GEMINI_API_KEY: "test-key",
+        GEMINI_API_BASE: `http://127.0.0.1:${port}`
+      }
+    });
+
+    expect(stdout).toContain("out.png (1x1)");
+    const png = await readFile(output);
+    expect(png.toString("ascii", 1, 4)).toBe("PNG");
+
+    expect(requests.length).toBe(1);
+    expect(requests[0].url).toContain(":generateContent");
+    const parts = requests[0].body.contents[0].parts;
+    expect(parts.some((p) => p.inline_data || p.inlineData)).toBe(true);
+    expect(parts.some((p) => typeof p.text === "string" && p.text.length > 20)).toBe(true);
+    // Default model is gemini-3 family: ask for 2K output so the final
+    // upscale back to the App Store slot stays small.
+    expect(requests[0].body.generationConfig.imageConfig).toEqual({ imageSize: "2K" });
+  } finally {
+    server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("enhance CLI converts non-PNG model output back to source-size PNG", async () => {
+  const http = await import("node:http");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-enhance-"));
+  const input = path.join(dir, "in.png");
+  const output = path.join(dir, "out.png");
+
+  // Build a real 2x2 JPEG fixture (differs from the 1x1 PNG source in both
+  // format and size) so the CLI has to convert AND resize.
+  const jpegSource = path.join(dir, "fake.jpg");
+  await writeFile(path.join(dir, "fake.png"), Buffer.from(TINY_PNG_BASE64, "base64"));
+  await execFileAsync("sips", ["-z", "2", "2", "-s", "format", "jpeg", path.join(dir, "fake.png"), "--out", jpegSource]);
+  const TINY_JPEG_BASE64 = (await readFile(jpegSource)).toString("base64");
+
+  const server = http.createServer((req, res) => {
+    req.on("data", () => {});
+    req.on("end", () => {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({
+        candidates: [{
+          content: {
+            parts: [{ inlineData: { mimeType: "image/jpeg", data: TINY_JPEG_BASE64 } }]
+          }
+        }]
+      }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+
+  try {
+    await writeFile(input, Buffer.from(TINY_PNG_BASE64, "base64"));
+
+    const { stdout } = await execFileAsync("node", [
+      "scripts/enhance-screenshot.mjs",
+      "--input", input,
+      "--output", output
+    ], {
+      cwd: process.cwd(),
+      timeout: 30000,
+      env: {
+        ...process.env,
+        GEMINI_API_KEY: "test-key",
+        GEMINI_API_BASE: `http://127.0.0.1:${port}`
+      }
+    });
+
+    // Source is 1x1 PNG; the JPEG (2x2) must come back as a 1x1 PNG.
+    expect(stdout).toContain("out.png (1x1)");
+    const png = await readFile(output);
+    expect(png.toString("ascii", 1, 4)).toBe("PNG");
+    expect(png.readUInt32BE(16)).toBe(1);
+    expect(png.readUInt32BE(20)).toBe(1);
+  } finally {
+    server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("renders an App Store PNG from the agent CLI", async ({ baseURL }) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
   const source = path.join(dir, "source.png");
