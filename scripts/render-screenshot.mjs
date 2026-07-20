@@ -42,7 +42,9 @@ function usage() {
     "  bgMode                      \"gradient\" | \"solid\" | \"image\"",
     "  gradA, gradB, gradAngle     Gradient colors and angle in degrees.",
     "  solid                       Solid background color.",
-    "  bgImage                     Background image data URL (with bgMode \"image\").",
+    "  bgImage                     Background image (with bgMode \"image\"): a data URL",
+    "                              or a file path (resolved against the manifest, or",
+    "                              the working directory in single mode).",
     "  frame                       \"iphone-3d\" (default) | \"none\" — plain rounded",
     "                              screenshot with a soft shadow, no device frame or 3D",
     "                              model (works for any device, e.g. iPad captures).",
@@ -388,6 +390,21 @@ async function writeGallery(galleryPath, results) {
   console.log(`${galleryPath} (gallery, ${results.length} shots)`);
 }
 
+async function resolveBgImage(state, baseDir) {
+  // bgImage accepts a data URL or a file path (resolved against the manifest
+  // for batch items, the working directory for single mode).
+  if (!state || typeof state.bgImage !== "string" || state.bgImage.startsWith("data:")) {
+    return state;
+  }
+  const resolved = path.resolve(baseDir, state.bgImage);
+  if (!existsSync(resolved)) {
+    throw new Error(`bgImage not found: ${state.bgImage} (resolved to ${resolved})`);
+  }
+  const buffer = await readFile(resolved);
+  const mime = /\.jpe?g$/i.test(resolved) ? "image/jpeg" : "image/png";
+  return { ...state, bgImage: `data:${mime};base64,${buffer.toString("base64")}` };
+}
+
 async function readBatch(manifestPath) {
   const resolved = path.resolve(manifestPath);
   const manifest = JSON.parse(await readFile(resolved, "utf8"));
@@ -395,7 +412,7 @@ async function readBatch(manifestPath) {
   if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
     throw new Error("Batch manifest needs a non-empty items array.");
   }
-  return manifest.items.flatMap((item, index) => {
+  const jobs = manifest.items.flatMap((item, index) => {
     if (!item.screenshot || !item.output) {
       throw new Error(`Batch item ${index + 1} needs screenshot and output paths.`);
     }
@@ -424,6 +441,10 @@ async function readBatch(manifestPath) {
       locale
     }));
   });
+  return Promise.all(jobs.map(async (job) => ({
+    ...job,
+    state: await resolveBgImage(job.state, baseDir)
+  })));
 }
 
 async function main() {
@@ -449,7 +470,7 @@ async function main() {
     jobs = [{
       screenshotPath: path.resolve(args.screenshot),
       outputPath: path.resolve(args.output),
-      state: await readState(args),
+      state: await resolveBgImage(await readState(args), process.cwd()),
       locale: null
     }];
   }

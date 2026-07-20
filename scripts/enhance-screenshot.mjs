@@ -21,6 +21,12 @@ function usage() {
     "  --input <png|dir>    A rendered screenshot, or a directory of PNGs.",
     "  --output <png|dir>   Output file (single) or directory (batch).",
     "                       Default: alongside the input with an -enhanced suffix.",
+    "  --mode <name>        enhance (default): enrich background + make the UI pop.",
+    "                       background: generate ONLY an empty backdrop in the input's",
+    "                         style — feed it back via the render CLI's bgImage param",
+    "                         so captions stay deterministic and crisp.",
+    "                       popout: make the presented sheet/card break out of the",
+    "                         device frame with a floating shadow.",
     "  --model <name>       flash = gemini-2.5-flash-image (cheaper),",
     "                       pro = gemini-3-pro-image-preview (default), or any",
     "                       full Gemini image-generation model id.",
@@ -42,7 +48,7 @@ function usage() {
   ].join("\n");
 }
 
-const KNOWN_OPTIONS = ["--input", "--output", "--model", "--prompt", "--prompt-file", "--size", "--force", "--help"];
+const KNOWN_OPTIONS = ["--input", "--output", "--model", "--mode", "--prompt", "--prompt-file", "--size", "--force", "--help"];
 const IMAGE_SIZES = ["1K", "2K", "4K"];
 
 const MODEL_ALIASES = {
@@ -64,6 +70,38 @@ ENHANCE (subtle, premium, editorial):
 - You may add small tasteful garnish elements in empty background areas (paper scraps, subtle shapes) matching the existing style — never overlapping text or the device screen.
 
 The result must read as the same screenshot, art-directed by a professional — not a different design.`;
+
+const BACKGROUND_PROMPT = `Generate ONLY an empty background image, using the attached App Store screenshot purely as a style, palette, and mood reference.
+
+STRICT REQUIREMENTS:
+- Output dimensions EXACTLY the same as the attached image.
+- NO device, NO phone, NO text, NO UI elements — an empty backdrop only.
+
+STYLE (subtle, premium, editorial — matching the reference):
+- Gentle paper or fabric texture with natural depth and soft light.
+- The same colour family as the reference's background.
+- Tasteful garnish near the edges is welcome (torn-paper edges, faint
+  watercolour washes, small paper scraps) — keep the centre calm so device
+  and captions can sit over it.
+
+The result is a clean backdrop the reference screenshot's content could be composited onto.`;
+
+const POPOUT_PROMPT = `This App Store marketing screenshot shows a phone whose screen presents a sheet/card UI element (a rounded panel, typically in the lower half of the screen).
+
+TASK: make that presented sheet visually POP OUT of the phone — extend it slightly beyond the device frame's edges so it floats above the phone, with a soft realistic drop shadow, as if lifted off the screen.
+
+STRICT REQUIREMENTS:
+- Keep the output dimensions EXACTLY the same as the input.
+- Keep every piece of text EXACTLY as it is — same words, same font look; the sheet's own text scales naturally with the sheet.
+- Keep the background, captions, and the rest of the device unchanged.
+
+The only change is the sheet breaking out of the frame. Do NOT reframe, zoom, or change the canvas aspect ratio — the composition must stay exactly as the input.`;
+
+const MODES = {
+  enhance: DEFAULT_PROMPT,
+  background: BACKGROUND_PROMPT,
+  popout: POPOUT_PROMPT
+};
 
 function editDistance(a, b) {
   const rows = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
@@ -207,6 +245,18 @@ async function enhanceOne({ inputPath, outputPath, apiBase, apiKey, model, promp
         execFileSync("sips", ["-s", "format", "png", outputPath, "--out", outputPath], { stdio: "pipe" });
       }
       let dims = pngDimensions(await readFile(outputPath));
+      if (sourceDims) {
+        const sourceAspect = sourceDims.width / sourceDims.height;
+        const deviation = Math.abs(dims.width / dims.height - sourceAspect) / sourceAspect;
+        if (deviation > 0.05) {
+          // Cropping this far off-aspect would cut real content (titles at
+          // the margins); reject the attempt and let the retry loop try again.
+          throw new Error(
+            `model returned ${dims.width}x${dims.height}, far off the source aspect ` +
+            `(${sourceDims.width}x${sourceDims.height}) — cropping would cut content.`
+          );
+        }
+      }
       if (sourceDims && (dims.width !== sourceDims.width || dims.height !== sourceDims.height)) {
         console.error(
           `warning: model returned ${dims.width}x${dims.height} for ${path.basename(inputPath)}; ` +
@@ -274,7 +324,11 @@ async function main() {
   }
   const apiBase = process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com";
   const model = MODEL_ALIASES[args.model] || args.model || DEFAULT_MODEL;
-  const prompt = args.prompt || (args.promptFile ? await readFile(path.resolve(args.promptFile), "utf8") : DEFAULT_PROMPT);
+  const mode = args.mode || "enhance";
+  if (!MODES[mode]) {
+    throw new Error(`Unknown --mode: ${mode}. Valid modes: ${Object.keys(MODES).join(", ")}.`);
+  }
+  const prompt = args.prompt || (args.promptFile ? await readFile(path.resolve(args.promptFile), "utf8") : MODES[mode]);
   const imageSize = (args.size || "2K").toUpperCase();
   if (!IMAGE_SIZES.includes(imageSize)) {
     throw new Error(`Unknown --size: ${args.size}. Valid sizes: ${IMAGE_SIZES.join(", ")}.`);

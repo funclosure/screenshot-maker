@@ -964,6 +964,174 @@ test("CLI --gallery writes an HTML contact sheet of the rendered set", async ({ 
   }
 });
 
+test("CLI resolves a bgImage file path in batch manifests", async ({ baseURL }) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const manifest = path.join(dir, "manifest.json");
+
+  try {
+    await writeFile(path.join(dir, "source.png"), Buffer.from(TINY_PNG_BASE64, "base64"));
+    await writeFile(path.join(dir, "bg.png"), Buffer.from(TINY_PNG_BASE64, "base64"));
+    await writeFile(manifest, JSON.stringify({
+      items: [{
+        screenshot: "source.png",
+        output: "out/shot.png",
+        state: { title: "t", subtitle: "s", bgMode: "image", bgImage: "bg.png" }
+      }]
+    }));
+
+    const { stderr } = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--url", `${baseURL}/screenshot-stage.html`,
+      "--batch", manifest
+    ], { cwd: process.cwd(), timeout: 60000 });
+
+    expect(stderr).not.toContain("not recognized");
+    const png = await readFile(path.join(dir, "out/shot.png"));
+    expect(png.readUInt32BE(16)).toBe(1290);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI fails clearly when a bgImage path does not exist", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-maker-"));
+  const manifest = path.join(dir, "manifest.json");
+
+  try {
+    await writeFile(path.join(dir, "source.png"), Buffer.from(TINY_PNG_BASE64, "base64"));
+    await writeFile(manifest, JSON.stringify({
+      items: [{
+        screenshot: "source.png",
+        output: "out/shot.png",
+        state: { bgMode: "image", bgImage: "missing-bg.png" }
+      }]
+    }));
+
+    const error = await execFileAsync("node", [
+      "scripts/render-screenshot.mjs",
+      "--batch", manifest
+    ], { cwd: process.cwd(), timeout: 15000 }).then(() => null, (e) => e);
+
+    expect(error).not.toBeNull();
+    expect(String(error.stderr)).toContain("missing-bg.png");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("enhance CLI validates --mode and varies the prompt per mode", async () => {
+  const badMode = await execFileAsync("node", [
+    "scripts/enhance-screenshot.mjs", "--input", "package.json", "--mode", "sparkle"
+  ], {
+    cwd: process.cwd(),
+    timeout: 15000,
+    env: { ...process.env, GEMINI_API_KEY: "test-key" }
+  }).then(() => null, (e) => e);
+  expect(badMode).not.toBeNull();
+  expect(String(badMode.stderr)).toContain("sparkle");
+  expect(String(badMode.stderr)).toContain("background");
+  expect(String(badMode.stderr)).toContain("popout");
+
+  const http = await import("node:http");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-enhance-"));
+  const prompts = [];
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      prompts.push(JSON.parse(body).contents[0].parts.find((p) => p.text).text);
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({
+        candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: TINY_PNG_BASE64 } }] } }]
+      }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+
+  try {
+    const input = path.join(dir, "in.png");
+    await writeFile(input, Buffer.from(TINY_PNG_BASE64, "base64"));
+    const env = {
+      ...process.env,
+      GEMINI_API_KEY: "test-key",
+      GEMINI_API_BASE: `http://127.0.0.1:${port}`
+    };
+
+    await execFileAsync("node", [
+      "scripts/enhance-screenshot.mjs", "--input", input,
+      "--output", path.join(dir, "bg.png"), "--mode", "background"
+    ], { cwd: process.cwd(), timeout: 30000, env });
+    await execFileAsync("node", [
+      "scripts/enhance-screenshot.mjs", "--input", input,
+      "--output", path.join(dir, "pop.png"), "--mode", "popout"
+    ], { cwd: process.cwd(), timeout: 30000, env });
+
+    expect(prompts.length).toBe(2);
+    expect(prompts[0].toLowerCase()).toContain("background");
+    expect(prompts[0].toLowerCase()).toContain("no device");
+    expect(prompts[1].toLowerCase()).toContain("pop");
+    expect(prompts[1].toLowerCase()).toContain("sheet");
+  } finally {
+    server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("enhance CLI rejects far-off-aspect model output instead of cropping content", async () => {
+  const http = await import("node:http");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "screenshot-enhance-"));
+  const input = path.join(dir, "in.png");
+  const output = path.join(dir, "out.png");
+
+  // Build a 2x1 PNG: aspect 2.0 vs the 1x1 source — cropping would drop half
+  // the content, so the CLI must retry and ultimately fail loudly.
+  const widePath = path.join(dir, "wide.png");
+  await writeFile(path.join(dir, "seed.png"), Buffer.from(TINY_PNG_BASE64, "base64"));
+  await execFileAsync("sips", ["-z", "1", "2", path.join(dir, "seed.png"), "--out", widePath]);
+  const WIDE_PNG_BASE64 = (await readFile(widePath)).toString("base64");
+
+  let calls = 0;
+  const server = http.createServer((req, res) => {
+    req.on("data", () => {});
+    req.on("end", () => {
+      calls += 1;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({
+        candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: WIDE_PNG_BASE64 } }] } }]
+      }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+
+  try {
+    await writeFile(input, Buffer.from(TINY_PNG_BASE64, "base64"));
+
+    const error = await execFileAsync("node", [
+      "scripts/enhance-screenshot.mjs",
+      "--input", input,
+      "--output", output
+    ], {
+      cwd: process.cwd(),
+      timeout: 60000,
+      env: {
+        ...process.env,
+        GEMINI_API_KEY: "test-key",
+        GEMINI_API_BASE: `http://127.0.0.1:${port}`
+      }
+    }).then(() => null, (e) => e);
+
+    expect(error).not.toBeNull();
+    expect(error.code).toBe(1);
+    expect(String(error.stderr)).toContain("aspect");
+    expect(calls).toBeGreaterThanOrEqual(3); // retried before giving up
+  } finally {
+    server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("enhance CLI --help documents the contract", async () => {
   const { stdout } = await execFileAsync("node", [
     "scripts/enhance-screenshot.mjs", "--help"

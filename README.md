@@ -147,10 +147,25 @@ node scripts/enhance-screenshot.mjs --input shot.png --output shot-final.png
 
 Defaults: `gemini-3-pro-image-preview` at 2K (use `--model flash` for the
 cheaper `gemini-2.5-flash-image`); custom art direction via `--prompt` /
-`--prompt-file`. Non-PNG or off-size model output is converted and resized
-back to the source's exact slot size automatically. Enhancement is
-generative — always review the output before uploading. See
+`--prompt-file`. Non-PNG or slightly off-size model output is converted and
+cover-cropped/resized back to the source's exact slot size; far-off-aspect
+output is rejected and retried rather than cropped into the content.
+Enhancement is generative — always review the output before uploading. See
 `node scripts/enhance-screenshot.mjs --help` for the full contract.
+
+Two focused modes compose into a text-safe pipeline:
+
+```sh
+# 1. Generate ONLY a background in the panel's style…
+node scripts/enhance-screenshot.mjs --mode background --input framed/en-US/03.png --output backgrounds/03-bg.png
+# 2. …re-render deterministically on it (captions never touch the model):
+#    manifest state: { "bgMode": "image", "bgImage": "backgrounds/03-bg.png" }
+# 3. Optionally make the presented sheet break out of the device frame:
+node scripts/enhance-screenshot.mjs --mode popout --input framed/en-US/03.png --output framed/en-US/03-popout.png
+```
+
+`bgImage` accepts a file path (resolved relative to the manifest) as well as
+a data URL, so generated backgrounds drop straight into batch manifests.
 
 ## Test
 
