@@ -104,8 +104,13 @@ future session can act without re-discovering context.
 2. **Theme presets.** Agents hand-pick `gradA/gradB/textColor` every run.
    Named palettes (`theme: "warm-light" | "dark" | {brand: "#E4573D"}`)
    deriving gradient + text color would remove the most error-prone knob.
-   The warm-light set used in production: `#FDEEE7 → #F6D3C2`, angle 165,
-   text `#2B2B2B`, titleSize 82, subtitleSize 40.
+   The warm-light set used in production (updated by the July 20 TimeCliper
+   re-shoot, 18 outputs, en-US + zh-Hant, iPhone + iPad): `#FDEEE7 →
+   #F6D3C2`, angle 165, text `#2B2B2B`, subtitle accent `#B9502F`,
+   titleSize 104, subtitleSize 40, captionTop 0.065, phoneWidthRatio 0.88,
+   phoneOffset `{x: 0, y: -265}`, rotation varied per item
+   (`y: ±0.13, z: ∓0.012` iPhone / `±0.11` iPad, heroes flat-on).
+   Full working example: `TimeCliper/AppStore/screenshots/manifest.json`.
 3. **Scene validation in the stage itself.** The CLI now warns on
    unrecognized keys (by diffing against `getState()`), but in-browser
    `setState` callers still get silent ignores. Publish a JSON schema next
@@ -123,3 +128,45 @@ future session can act without re-discovering context.
    batch render against a checked-in raw PNG and compare IHDR + a few
    sampled pixels, so refactors of the export path can't silently change
    output geometry.
+
+## From the July 20 TimeCliper re-shoot (agent session retro)
+
+New items, ranked by time actually burned:
+
+7. **Caption-anchored device placement.** The #1 friction. The default
+   layout left ~450px of empty gradient between the caption block and the
+   device; the user flagged it as "huge gap", and closing it took three
+   full re-renders of guessed absolute `phoneOffset.y` values (110 → 55 →
+   -265). The stage already measures the caption block — add an anchor
+   mode (`phoneTop: "captions"` + `gapBelowCaptions: <px|ratio>`) so the
+   most common composition is declarative. Absolute px offsets in `base`
+   also silently couple iPhone and iPad items (2796 vs 2752 canvases
+   happened to tolerate the same -265; that's luck, not design).
+8. **Warn on caption wrap (or balance it).** Bumping `subtitleSize` 40→46
+   silently wrapped the longer subtitles with single-word orphans
+   ("…SHAREABLE / IMAGE"), caught only by opening PNGs at 100%. The CLI
+   already warns on unknown keys — add
+   `subtitle wrapped to 2 lines (item 01-card, en-US)` to stderr, and/or
+   `text-wrap: balance` on captions so a wrap at least lands balanced.
+9. **`--only <glob>` batch filter.** Every single-panel tweak re-rendered
+   all 18 outputs (~1 min per iteration cycle). `--only "01-*"` /
+   `--only "ipad/**"` against the same manifest would make the fix loop
+   seconds instead.
+10. **CJK title font falls out of brand.** en-US titles render EB Garamond;
+    zh-Hant falls back to a system CJK *sans*, so locales differ in type
+    voice. Fetch a serif CJK companion (Noto Serif TC) in the same Google
+    Fonts request, or accept a `titleFontCJK` key.
+11. **Doc micro-gaps.** Two facts learned by experiment, one sentence each
+    in `--help`: `phoneOffset.y` positive = down; title/subtitle sizes are
+    1290-reference and scale with the canvas preset (it *is* documented for
+    canvas — repeat it next to the size keys where an agent looks).
+
+What worked (keep): manifest + `{locale}` placeholder produced 18 outputs
+(2 locales × 2 device classes) from one file and one command; the
+`path (WxH)` output contract made verification trivial; the locale-grouped
+gallery was the review surface the user actually used to approve the set.
+
+Cross-repo note (TimeCliper, not this tool): the `-auto-create-image`
+launch arg re-fires on every `TranscriptDetailView.onAppear`, so combined
+with `-auto-save-clip` it loops (16 duplicate clips in ~45s; DB cleaned by
+hand). Needs a one-shot guard before it's safe to chain automation args.
