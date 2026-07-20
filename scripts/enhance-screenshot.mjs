@@ -161,12 +161,23 @@ async function callGemini({ apiBase, apiKey, model, prompt, imageBase64, imageSi
   throw new Error(text ? `No image in response: ${text.slice(0, 300)}` : "No image in response.");
 }
 
-function resizeToMatch(outputPath, width, height) {
+function resizeToMatch(outputPath, target, current) {
   try {
-    execFileSync("sips", ["-z", String(height), String(width), outputPath], { stdio: "pipe" });
+    // Crop to the target aspect first (centered) so off-aspect model output
+    // is cover-fitted instead of squished.
+    const targetAspect = target.width / target.height;
+    const currentAspect = current.width / current.height;
+    if (Math.abs(currentAspect - targetAspect) / targetAspect > 0.005) {
+      let cropW = current.width;
+      let cropH = current.height;
+      if (currentAspect > targetAspect) cropW = Math.round(current.height * targetAspect);
+      else cropH = Math.round(current.width / targetAspect);
+      execFileSync("sips", ["-c", String(cropH), String(cropW), outputPath], { stdio: "pipe" });
+    }
+    execFileSync("sips", ["-z", String(target.height), String(target.width), outputPath], { stdio: "pipe" });
     return true;
   } catch (error) {
-    console.error(`warning: could not resize ${outputPath} back to ${width}x${height} (sips unavailable?): ${error.message}`);
+    console.error(`warning: could not resize ${outputPath} back to ${target.width}x${target.height} (sips unavailable?): ${error.message}`);
     return false;
   }
 }
@@ -201,7 +212,7 @@ async function enhanceOne({ inputPath, outputPath, apiBase, apiKey, model, promp
           `warning: model returned ${dims.width}x${dims.height} for ${path.basename(inputPath)}; ` +
           `resizing back to ${sourceDims.width}x${sourceDims.height}.`
         );
-        if (resizeToMatch(outputPath, sourceDims.width, sourceDims.height)) {
+        if (resizeToMatch(outputPath, sourceDims, dims)) {
           dims = pngDimensions(await readFile(outputPath));
         }
       }

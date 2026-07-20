@@ -5,3 +5,4 @@ tmp/
 dist/
 .DS_Store
 iphone-17-pro.zip
+.env

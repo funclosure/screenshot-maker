@@ -122,6 +122,11 @@ preview uses a CSS transform. Input PNGs can be any portrait capture
 preset. `titleSize`/`subtitleSize` are defined at a 1290-wide reference and
 scale with canvas width, so the same state renders proportionally everywhere.
 
+Fonts: captions use two typefaces — the title renders in **EB Garamond**
+(loaded from Google Fonts, so rendering needs network access; offline it
+silently falls back to Georgia) and the subtitle uses the system sans-serif
+stack (`-apple-system, …`). Fonts are not yet configurable via scene state.
+
 Known gaps and next improvements live in `docs/agent-backlog.md`.
 
 In the browser preview, drag the phone to rotate it. Hold Space while dragging
@@ -135,7 +140,7 @@ and makes the device pop — while keeping captions, layout, and exact
 dimensions:
 
 ```sh
-export GEMINI_API_KEY=...   # https://aistudio.google.com/apikey
+export GOOGLE_API_KEY=...   # or GEMINI_API_KEY; https://aistudio.google.com/apikey
 node scripts/enhance-screenshot.mjs --input framed/en-US        # whole folder
 node scripts/enhance-screenshot.mjs --input shot.png --output shot-final.png
 ```

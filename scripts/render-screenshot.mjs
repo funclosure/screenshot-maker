@@ -56,6 +56,10 @@ function usage() {
     "                              ready instead of drawing a flat 2D phone.",
     "  canvas                      Slot preset name (same values as --canvas).",
     "",
+    "Fonts: the title renders in EB Garamond (fetched from Google Fonts, so the",
+    "first render needs network; offline it falls back to Georgia). The subtitle",
+    "uses the system sans-serif stack. Fonts are not yet configurable.",
+    "",
     "Output: one \"path (WxH)\" line per rendered PNG on stdout, sized by the canvas",
     "preset (default 1290x2796). Warnings and stage errors go to stderr; exit code 1",
     "when any item fails. Starter scene: examples/scene.json (see README.md)."
