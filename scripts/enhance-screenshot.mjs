@@ -93,7 +93,7 @@ const POPOUT_PROMPT = `Edit this App Store marketing screenshot. The phone's scr
 
 Re-composite the image so that this exact sheet is scaled up to be wider than the phone body: its left and right edges reach past the phone onto the page background, so the sheet pops out of the device frame.
 
-The visible result contains exactly one sheet — a flat, single-layer rounded rectangle with the same content — casting one soft drop shadow onto the phone and the background beneath it. Directly behind the sheet is only the phone and the page background.
+The visible result contains exactly one sheet — a flat, single-layer rounded rectangle with the same content — casting one soft drop shadow onto the phone and the background beneath it. Directly behind the sheet is only the phone and the page background. The image contains exactly one phone; behind and beside the phone, from its edges to the canvas edges, there is only the flat page background.
 
 Every other element — captions, phone, background, all text — stays pixel-identical to the input. Output has the same dimensions and aspect ratio as the input.`;
 
