@@ -880,6 +880,8 @@
     phoneWidthRatio: 0.72,
     /* Caption block top as a fraction of canvas height. */
     captionTop: 0.11,
+    /* Optional subtitle color; null falls back to textColor. */
+    subtitleColor: null,
     /* The 3D model is the default export path. The flat 2D-drawn phone is
        opt-in only, so an unready model fails the export instead of silently
        degrading a set. */
@@ -1095,6 +1097,7 @@
     titleEl.style.fontSize = (state.titleSize / 12.9) + "cqw";
     subtitleEl.style.fontSize = (state.subtitleSize / 12.9) + "cqw";
     caption.style.color = state.textColor;
+    subtitleEl.style.color = state.subtitleColor || "";
     caption.style.textAlign = state.align;
     /* Mirror the export's caption top (fraction of canvas height). */
     caption.style.marginTop = (+(state.captionTop * 100).toFixed(4)) + "cqh";
@@ -1387,6 +1390,7 @@
       var subtitlePx = state.subtitleSize * (STAGE_W / TEXT_REF_W);
       wrapText(state.title, "700 " + titlePx + "px " + titleFont, titlePx * 1.1);
       y += subtitlePx * 0.9;
+      ctx.fillStyle = state.subtitleColor || state.textColor;
       ctx.globalAlpha = 0.66;
       ctx.letterSpacing = Math.round(subtitlePx * 0.14) + "px";
       wrapText(String(state.subtitle).toUpperCase(), "500 " + subtitlePx + "px " + uiFont, subtitlePx * 1.4);
@@ -1593,6 +1597,7 @@
     if (typeof next.titleSize === "number") state.titleSize = Math.max(40, Math.min(140, next.titleSize));
     if (typeof next.subtitleSize === "number") state.subtitleSize = Math.max(24, Math.min(80, next.subtitleSize));
     if (typeof next.textColor === "string") state.textColor = next.textColor;
+    if (typeof next.subtitleColor === "string" || next.subtitleColor === null) state.subtitleColor = next.subtitleColor;
     if (["left", "center"].indexOf(next.align) !== -1) state.align = next.align;
     if (next.phoneOffset && typeof next.phoneOffset === "object") {
       /* Same clamp ratios as the historical ±480/±720 at 1290×2796. */
@@ -1641,6 +1646,7 @@
         titleSize: state.titleSize,
         subtitleSize: state.subtitleSize,
         textColor: state.textColor,
+        subtitleColor: state.subtitleColor,
         align: state.align,
         phoneOffset: { x: state.phoneOffset.x, y: state.phoneOffset.y },
         phoneScale: Number(state.phoneScale.toFixed(3)),

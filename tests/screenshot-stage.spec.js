@@ -606,6 +606,41 @@ test("captionTop moves the caption block in export and preview", async ({ page }
   expect(titleDraw.y).toBeCloseTo(2796 * 0.05, 0);
 });
 
+test("subtitleColor styles the subtitle independently in export and preview", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  await page.evaluate(() => {
+    window.__drawnTexts = [];
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+      window.__drawnTexts.push({ text: String(text), fillStyle: String(this.fillStyle) });
+      return original.call(this, text, x, y, ...rest);
+    };
+    window.ScreenshotStage.setState({
+      title: "BrownTitle",
+      subtitle: "GreenSub",
+      textColor: "#4a3e30",
+      subtitleColor: "#3f6b5c"
+    });
+  });
+
+  expect(await page.evaluate(() => window.ScreenshotStage.getState().subtitleColor)).toBe("#3f6b5c");
+  await expect(page.locator("#subtitleEl")).toHaveCSS("color", "rgb(63, 107, 92)");
+  await expect(page.locator("#titleEl")).toHaveCSS("color", "rgb(74, 62, 48)");
+
+  await page.getByRole("button", { name: "Enter export mode" }).click();
+  await page.getByRole("button", { name: "Download PNG" }).click();
+  await expect.poll(
+    () => page.evaluate(() => window.__lastExportDataUrl || ""),
+    { timeout: 20000 }
+  ).toContain("data:image/png;base64,");
+
+  const drawn = await page.evaluate(() => window.__drawnTexts);
+  expect(drawn.find((d) => d.text === "BrownTitle").fillStyle).toBe("#4a3e30");
+  expect(drawn.find((d) => d.text === "GREENSUB").fillStyle).toBe("#3f6b5c");
+});
+
 test("export wraps CJK titles without needing injected spaces", async ({ page }) => {
   await page.goto("/screenshot-stage.html");
   await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
