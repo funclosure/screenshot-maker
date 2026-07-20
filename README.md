@@ -4,10 +4,11 @@ Browser-based App Store screenshot composer with a 3D iPhone stage.
 
 ![App Store panels rendered with screenshot-maker](docs/showcase.jpg)
 
-*One batch manifest produced all of these (Inkput's set): stacked editorial
-titles, localized zh-Hant captions from the same raw capture, and — via the
-optional AI layer — generated paper backgrounds and sheets popping out of
-the device frame.*
+*One batch manifest produced all of these — the App Store set for
+[Inkput — Mindful Journaling](https://apps.apple.com/jp/app/inkput-mindful-journaling/id6758570182?l=en-US):
+stacked editorial titles, localized zh-Hant captions from the same raw
+capture, and — via the optional AI layer — generated paper backgrounds and
+sheets popping out of the device frame.*
 
 ## Run
 
