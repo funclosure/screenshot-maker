@@ -90,6 +90,17 @@ future session can act without re-discovering context.
    liquid-glass translucency (the gen-AI popout flattens it to opaque),
    zero roulette. `item.overlay = {screenshot, scale, offset}` in the
    manifest.
+
+   Gap analysis vs Inkput's live listing (the hand-made set still beats
+   the tool; https://apps.apple.com/jp/app/inkput-mindful-journaling/id6758570182):
+   frosted sheet translucency with content ghosting through (needs the
+   overlay above, with real alpha); storytelling garnish placed WITH
+   INTENT (a handwritten note peeking from behind the sheet — humans
+   direct, models decorate); a small accent underline below titles (easy
+   `titleAccent` scene key, pairs with `subtitleColor`); tilt VARIED
+   per panel across the set for row rhythm (agents should vary
+   `rotation` per item, not inherit one base pose — document in README
+   or add a preset).
 2. **Theme presets.** Agents hand-pick `gradA/gradB/textColor` every run.
    Named palettes (`theme: "warm-light" | "dark" | {brand: "#E4573D"}`)
    deriving gradient + text color would remove the most error-prone knob.
