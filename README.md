@@ -134,10 +134,11 @@ to pan the phone placement.
 
 ## AI enhancement layer (optional)
 
-With a Gemini API key, rendered screenshots can go through one more pass
-that enriches the flat background (paper texture, light, tasteful garnish)
-and makes the device pop — while keeping captions, layout, and exact
-dimensions:
+Everything above is deterministic and produces upload-ready sets on its
+own. This layer is an **optional extra touch** for users who have a Gemini
+API key and want hand-crafted-looking panels: it enriches the flat
+background (paper texture, light, tasteful garnish) and makes the device
+pop — while keeping captions, layout, and exact dimensions:
 
 ```sh
 export GOOGLE_API_KEY=...   # or GEMINI_API_KEY; https://aistudio.google.com/apikey
@@ -166,6 +167,18 @@ node scripts/enhance-screenshot.mjs --mode popout --input framed/en-US/03.png --
 
 `bgImage` accepts a file path (resolved relative to the manifest) as well as
 a data URL, so generated backgrounds drop straight into batch manifests.
+
+Popout notes (learned the hard way — the default prompt encodes all of it):
+the sheet is enlarged "like zooming into a photograph" so its text scales
+up with the card and internal padding stays true to the app's real sheet.
+Generation is a dice roll per run — re-run on a bad roll, and always
+inspect edges at full resolution. Known tradeoff: the popped sheet usually
+comes out opaque, losing the translucent "liquid glass" material of the
+real iOS sheet; if that matters, re-roll with a custom `--prompt` asking to
+keep the frosted translucency.
+
+Recommended per-panel use: pop out only where one UI element *is* the
+panel's pitch; keep hero-screen panels flat.
 
 ## Test
 

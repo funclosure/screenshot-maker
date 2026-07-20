@@ -69,27 +69,46 @@ future session can act without re-discovering context.
   synthetic Dynamic Island and screen corner radius are per-device.
   ASC upload device-type: `IPAD_PRO_3GEN_129` / `APP_IPAD_PRO_3GEN_129`.
 
+- **Gemini enhancement layer** (July 2026, optional — needs
+  GEMINI_API_KEY/GOOGLE_API_KEY). `scripts/enhance-screenshot.mjs`, REST
+  via fetch, stub-testable via GEMINI_API_BASE. Modes: `enhance` (whole
+  panel), `background` (backdrop only → feed back via `bgImage` so text
+  stays deterministic), `popout` (sheet breaks out of the device frame).
+  Hard-won prompt lessons baked into the defaults: positive scene
+  inventories beat prohibitions; "enlarge like zooming into a photograph"
+  is what scales sheet text with the card. Aspect guard rejects reframed
+  output (>12% deviation) instead of cropping content; near-aspect output
+  is cover-cropped; non-PNG converted; always inspect edges at full
+  resolution — margins are where models hallucinate.
+
 ## TODO (priority order)
 
-1. **Theme presets.** Agents hand-pick `gradA/gradB/textColor` every run.
+1. **Deterministic sheet overlay.** The popout effect via image gen is a
+   dice roll per run. With two raw captures (screen without sheet + the
+   sheet cropped alone), the stage could composite the sheet as a popped
+   layer at exact position/scale/tilt — pixel-perfect padding, preserved
+   liquid-glass translucency (the gen-AI popout flattens it to opaque),
+   zero roulette. `item.overlay = {screenshot, scale, offset}` in the
+   manifest.
+2. **Theme presets.** Agents hand-pick `gradA/gradB/textColor` every run.
    Named palettes (`theme: "warm-light" | "dark" | {brand: "#E4573D"}`)
    deriving gradient + text color would remove the most error-prone knob.
    The warm-light set used in production: `#FDEEE7 → #F6D3C2`, angle 165,
    text `#2B2B2B`, titleSize 82, subtitleSize 40.
-2. **Scene validation in the stage itself.** The CLI now warns on
+3. **Scene validation in the stage itself.** The CLI now warns on
    unrecognized keys (by diffing against `getState()`), but in-browser
    `setState` callers still get silent ignores. Publish a JSON schema next
    to `examples/scene.json` and/or have `applySceneState` return the list
    of ignored keys.
-3. **ASC-size awareness in the CLI.** Input-aspect mismatch now warns; also
+4. **ASC-size awareness in the CLI.** Input-aspect mismatch now warns; also
    warn when the output matches no App Store slot (embed the small size
    table: iPhone 6.9/6.7 = 1290×2796 or 1320×2868; iPad 13 = 2064×2752).
-4. **Status-bar hygiene.** Document (or optionally composite) a clean 9:41
+5. **Status-bar hygiene.** Document (or optionally composite) a clean 9:41
    status bar; raw captures often carry real time/battery. Companion note:
    `xcrun simctl status_bar booted override --time "9:41" ...` before
    capture, and the simulator Dynamic Island renders a black pill for ~40s
    after launch — wait before capturing.
-5. **Golden-image test for export.** `npm test` covers the stage; add a
+6. **Golden-image test for export.** `npm test` covers the stage; add a
    batch render against a checked-in raw PNG and compare IHDR + a few
    sampled pixels, so refactors of the export path can't silently change
    output geometry.
