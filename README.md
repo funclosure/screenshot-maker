@@ -99,6 +99,7 @@ Scene JSON can control:
 - `bgMode`, `solid`, `gradA`, `gradB`, `gradAngle`: background;
   `bgImage` (data URL) with `bgMode: "image"`.
 - `title`, `subtitle`, `titleSize`, `subtitleSize`, `textColor`, `align`: text.
+  `subtitleColor` styles the subtitle as an accent (default: `textColor`).
   `\n` in a caption forces a line break (stacked editorial titles); CJK text
   wraps naturally without injected spaces.
 - `allow2DFallback`: default `false` — the export always uses the 3D model

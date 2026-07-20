@@ -37,6 +37,8 @@ function usage() {
     "  title, subtitle             Caption text. \\n forces a line break (stacked",
     "                              titles); CJK text wraps naturally without spaces.",
     "  titleSize (40-140), subtitleSize (24-80), textColor, align (\"center\"|\"left\")",
+    "  subtitleColor               Optional accent color for the subtitle only",
+    "                              (default: textColor).",
     "  bgMode                      \"gradient\" | \"solid\" | \"image\"",
     "  gradA, gradB, gradAngle     Gradient colors and angle in degrees.",
     "  solid                       Solid background color.",
