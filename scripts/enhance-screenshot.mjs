@@ -86,16 +86,16 @@ STYLE (subtle, premium, editorial — matching the reference):
 
 The result is a clean backdrop the reference screenshot's content could be composited onto.`;
 
-const POPOUT_PROMPT = `This App Store marketing screenshot shows a phone whose screen presents a sheet/card UI element (a rounded panel, typically in the lower half of the screen).
+// A positive shape description ("the result contains exactly one sheet...")
+// holds up here; prohibition-style wording ("do NOT add layers") reliably
+// produced a phantom second card behind the sheet.
+const POPOUT_PROMPT = `Edit this App Store marketing screenshot. The phone's screen shows a presented sheet/card UI element (a rounded panel, typically in the lower half of the screen).
 
-TASK: make that presented sheet visually POP OUT of the phone — extend it slightly beyond the device frame's edges so it floats above the phone, with a soft realistic drop shadow, as if lifted off the screen.
+Re-composite the image so that this exact sheet is scaled up to be wider than the phone body: its left and right edges reach past the phone onto the page background, so the sheet pops out of the device frame.
 
-STRICT REQUIREMENTS:
-- Keep the output dimensions EXACTLY the same as the input.
-- Keep every piece of text EXACTLY as it is — same words, same font look; the sheet's own text scales naturally with the sheet.
-- Keep the background, captions, and the rest of the device unchanged.
+The visible result contains exactly one sheet — a flat, single-layer rounded rectangle with the same content — casting one soft drop shadow onto the phone and the background beneath it. Directly behind the sheet is only the phone and the page background.
 
-The only change is the sheet breaking out of the frame. Do NOT reframe, zoom, or change the canvas aspect ratio — the composition must stay exactly as the input.`;
+Every other element — captions, phone, background, all text — stays pixel-identical to the input. Output has the same dimensions and aspect ratio as the input.`;
 
 const MODES = {
   enhance: DEFAULT_PROMPT,
@@ -248,7 +248,9 @@ async function enhanceOne({ inputPath, outputPath, apiBase, apiKey, model, promp
       if (sourceDims) {
         const sourceAspect = sourceDims.width / sourceDims.height;
         const deviation = Math.abs(dims.width / dims.height - sourceAspect) / sourceAspect;
-        if (deviation > 0.05) {
+        // Up to ~12% deviation crops only thin margins; beyond that the model
+        // reframed the composition and cropping would cut real content.
+        if (deviation > 0.12) {
           // Cropping this far off-aspect would cut real content (titles at
           // the margins); reject the attempt and let the retry loop try again.
           throw new Error(
