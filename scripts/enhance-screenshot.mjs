@@ -91,9 +91,9 @@ The result is a clean backdrop the reference screenshot's content could be compo
 // produced a phantom second card behind the sheet.
 const POPOUT_PROMPT = `Edit this App Store marketing screenshot. The phone's screen shows a presented sheet/card UI element (a rounded panel, typically in the lower half of the screen).
 
-Re-composite the image so that this exact sheet is scaled up to be wider than the phone body: its left and right edges reach past the phone onto the page background, so the sheet pops out of the device frame.
+Re-composite the image so that this exact sheet is scaled up to be modestly wider than the phone body: its left and right edges reach slightly past the phone onto the page background, so the sheet pops out of the device frame. If the phone is tilted, the phone keeps its EXACT tilt angle and the sheet tilts at the same angle, as if lifted straight off its screen.
 
-The visible result contains exactly one sheet — a flat, single-layer rounded rectangle with the same content — casting one soft drop shadow onto the phone and the background beneath it. Directly behind the sheet is only the phone and the page background. The image contains exactly one phone; behind and beside the phone, from its edges to the canvas edges, there is only the flat page background.
+The sheet moves as ONE complete piece: everything on it, from its top grab-handle to its bottom-most button, pops out together on the same card. The visible result contains exactly one fully opaque sheet — a flat, single-layer rounded rectangle with all of that content — casting one soft drop shadow onto the phone and the background beneath it. Directly behind the sheet is only the phone and the page background. The image contains exactly one phone; behind and beside the phone, from its edges to the canvas edges, there is only the flat page background.
 
 Every other element — captions, phone, background, all text — stays pixel-identical to the input. Output has the same dimensions and aspect ratio as the input.`;
 
