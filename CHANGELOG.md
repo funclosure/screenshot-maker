@@ -4,6 +4,22 @@ All notable changes to screenshot-maker are documented here. Versions follow
 [semver](https://semver.org); the CLI surface (`--help` contract, scene state
 keys, manifest format) is the public API.
 
+## 1.2.0 — 2026-07-20
+
+Theme presets and set-craft guidance, distilled from the TimeCliper re-shoot
+(18 outputs: en-US + zh-Hant, iPhone + iPad).
+
+- New `theme` scene key: `warm-light` (peach gradient, brown text, coral
+  accent) and `cream` (cream gradient, brown text, green accent) — the two
+  palettes proven in shipped listings, as macros over palette keys; explicit
+  keys in the same state override them.
+- `--help` and README now carry set craft that previously lived only in
+  session prompts: capture with a clean 9:41 status bar
+  (`xcrun simctl status_bar` override, ~40s Dynamic Island settle) and vary
+  `rotation` per item so a set reads as a designed row.
+- README: showcase strip of Inkput's shipped set, linked to the live App
+  Store listing.
+
 ## 1.1.0 — 2026-07-20
 
 Typography for CJK sets, finer caption control, and an optional Gemini

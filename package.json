@@ -1,6 +1,6 @@
 {
   "name": "screenshot-maker",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "App Store screenshot composer with a 3D iPhone stage.",
   "private": true,
   "scripts": {
