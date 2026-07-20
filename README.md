@@ -104,6 +104,9 @@ Scene JSON can control:
 - `phoneScale`: multiplier on top of `phoneWidthRatio`, clamped `0.5...1.5`.
 - `captionTop`: caption block top as a fraction of canvas height
   (default `0.11`, clamped `0.02...0.35`); smaller starts the title higher.
+- `theme`: palette preset macro — `warm-light` (peach gradient, brown text,
+  coral accent) or `cream` (cream gradient, brown text, green accent); both
+  proven in shipped listings. Explicit keys in the same state override it.
 - `bgMode`, `solid`, `gradA`, `gradB`, `gradAngle`: background;
   `bgImage` (data URL) with `bgMode: "image"`.
 - `title`, `subtitle`, `titleSize`, `subtitleSize`, `textColor`, `align`: text.
@@ -129,6 +132,12 @@ preview uses a CSS transform. Input PNGs can be any portrait capture
 (e.g. 1206 × 2622 iPhone, 2048 × 2732 iPad); output size follows the canvas
 preset. `titleSize`/`subtitleSize` are defined at a 1290-wide reference and
 scale with canvas width, so the same state renders proportionally everywhere.
+
+Set craft: capture raw screenshots with a clean status bar
+(`xcrun simctl status_bar booted override --time "9:41"`, and wait ~40s
+after launch so the simulator's Dynamic Island pill clears), and vary
+`rotation` per item — straight, tilted left, tilted right — so the set
+reads as a designed row rather than one repeated pose.
 
 Fonts: captions use two typefaces — the title renders in **EB Garamond**
 (loaded from Google Fonts, so rendering needs network access; offline it

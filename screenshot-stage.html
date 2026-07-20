@@ -882,6 +882,8 @@
     captionTop: 0.11,
     /* Optional subtitle color; null falls back to textColor. */
     subtitleColor: null,
+    /* Last applied theme preset name (a macro over palette keys), or null. */
+    theme: null,
     /* The 3D model is the default export path. The flat 2D-drawn phone is
        opt-in only, so an unready model fails the export instead of silently
        degrading a set. */
@@ -1582,8 +1584,21 @@
     });
   }
 
+  /* Production-validated palettes; a theme is a macro over palette keys.
+     Explicit keys in the same setState call override the theme's values. */
+  var THEME_PRESETS = {
+    "warm-light": { bgMode: "gradient", gradA: "#FDEEE7", gradB: "#F6D3C2", gradAngle: 165, textColor: "#2B2B2B", subtitleColor: "#B9502F" },
+    "cream": { bgMode: "gradient", gradA: "#FBF1E7", gradB: "#ECE2D4", gradAngle: 150, textColor: "#4A3E30", subtitleColor: "#3F6B5C" }
+  };
+
   function applySceneState(next) {
     if (!next || typeof next !== "object") return;
+    /* Theme first, so explicit keys in the same call win over it. */
+    if (THEME_PRESETS[next.theme]) {
+      var themed = THEME_PRESETS[next.theme];
+      next = Object.assign({}, themed, next);
+      state.theme = next.theme;
+    }
     /* Canvas first: offset clamps below depend on the stage size. */
     if (CANVAS_PRESETS[next.canvas]) state.canvas = next.canvas;
     if (["solid", "gradient", "image"].indexOf(next.bgMode) !== -1) state.bgMode = next.bgMode;
@@ -1647,6 +1662,7 @@
         subtitleSize: state.subtitleSize,
         textColor: state.textColor,
         subtitleColor: state.subtitleColor,
+        theme: state.theme,
         align: state.align,
         phoneOffset: { x: state.phoneOffset.x, y: state.phoneOffset.y },
         phoneScale: Number(state.phoneScale.toFixed(3)),

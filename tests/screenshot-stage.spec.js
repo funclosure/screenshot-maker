@@ -606,6 +606,39 @@ test("captionTop moves the caption block in export and preview", async ({ page }
   expect(titleDraw.y).toBeCloseTo(2796 * 0.05, 0);
 });
 
+test("theme presets expand to palette keys with explicit keys winning", async ({ page }) => {
+  await page.goto("/screenshot-stage.html");
+  await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });
+
+  const themed = await page.evaluate(() => window.ScreenshotStage.setState({ theme: "warm-light" }));
+  expect(themed.gradA.toLowerCase()).toBe("#fdeee7");
+  expect(themed.gradB.toLowerCase()).toBe("#f6d3c2");
+  expect(themed.textColor.toLowerCase()).toBe("#2b2b2b");
+  expect(themed.subtitleColor.toLowerCase()).toBe("#b9502f");
+  expect(themed.theme).toBe("warm-light");
+
+  // Explicit keys in the same call override the theme's values.
+  const overridden = await page.evaluate(() => window.ScreenshotStage.setState({
+    theme: "cream",
+    textColor: "#111111"
+  }));
+  expect(overridden.gradA.toLowerCase()).toBe("#fbf1e7");
+  expect(overridden.textColor).toBe("#111111");
+});
+
+test("CLI --help documents themes, status-bar hygiene, and rotation rhythm", async () => {
+  const { stdout } = await execFileAsync("node", [
+    "scripts/render-screenshot.mjs", "--help"
+  ], { cwd: process.cwd(), timeout: 15000 });
+
+  expect(stdout).toContain("theme");
+  expect(stdout).toContain("warm-light");
+  expect(stdout).toContain("cream");
+  expect(stdout).toContain("9:41");
+  expect(stdout).toContain("status_bar");
+  expect(stdout.toLowerCase()).toContain("vary");
+});
+
 test("subtitleColor styles the subtitle independently in export and preview", async ({ page }) => {
   await page.goto("/screenshot-stage.html");
   await expect(page.locator("#phoneCanvas")).toHaveAttribute("data-model-ready", "true", { timeout: 10000 });

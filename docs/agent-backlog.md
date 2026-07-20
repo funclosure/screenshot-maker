@@ -101,16 +101,15 @@ future session can act without re-discovering context.
    per panel across the set for row rhythm (agents should vary
    `rotation` per item, not inherit one base pose — document in README
    or add a preset).
-2. **Theme presets.** Agents hand-pick `gradA/gradB/textColor` every run.
-   Named palettes (`theme: "warm-light" | "dark" | {brand: "#E4573D"}`)
-   deriving gradient + text color would remove the most error-prone knob.
-   The warm-light set used in production (updated by the July 20 TimeCliper
-   re-shoot, 18 outputs, en-US + zh-Hant, iPhone + iPad): `#FDEEE7 →
-   #F6D3C2`, angle 165, text `#2B2B2B`, subtitle accent `#B9502F`,
-   titleSize 104, subtitleSize 40, captionTop 0.065, phoneWidthRatio 0.88,
-   phoneOffset `{x: 0, y: -265}`, rotation varied per item
-   (`y: ±0.13, z: ∓0.012` iPhone / `±0.11` iPad, heroes flat-on).
-   Full working example: `TimeCliper/AppStore/screenshots/manifest.json`.
+2. **More theme presets.** `theme: "warm-light" | "cream"` shipped (both
+   production palettes; explicit keys override the macro). Still open: a
+   dark preset and brand-derived palettes (`{brand: "#E4573D"}` deriving
+   gradient + text color). Layout values from the July 20 TimeCliper
+   re-shoot (18 outputs, en-US + zh-Hant, iPhone + iPad): titleSize 104,
+   subtitleSize 40, captionTop 0.065, phoneWidthRatio 0.88, phoneOffset
+   `{x: 0, y: -265}`, rotation varied per item (`y: ±0.13, z: ∓0.012`
+   iPhone / `±0.11` iPad, heroes flat-on). Full working example:
+   `TimeCliper/AppStore/screenshots/manifest.json`.
 3. **Scene validation in the stage itself.** The CLI now warns on
    unrecognized keys (by diffing against `getState()`), but in-browser
    `setState` callers still get silent ignores. Publish a JSON schema next
