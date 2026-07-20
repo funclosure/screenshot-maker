@@ -89,13 +89,16 @@ The result is a clean backdrop the reference screenshot's content could be compo
 // A positive shape description ("the result contains exactly one sheet...")
 // holds up here; prohibition-style wording ("do NOT add layers") reliably
 // produced a phantom second card behind the sheet.
+// The "zooming into a photograph" metaphor is what makes the model enlarge
+// the sheet's text together with the card; "scale together" alone left text
+// at its original size, inflating the sheet's internal padding.
 const POPOUT_PROMPT = `Edit this App Store marketing screenshot. The phone's screen shows a presented sheet/card UI element (a rounded panel, typically in the lower half of the screen).
 
-Re-composite the image so that this exact sheet is scaled up to be modestly wider than the phone body: its left and right edges reach slightly past the phone onto the page background, so the sheet pops out of the device frame. If the phone is tilted, the phone keeps its EXACT tilt angle and the sheet tilts at the same angle, as if lifted straight off its screen.
+Pop the sheet out of the device frame by enlarging it EXACTLY like zooming into a photograph: the whole sheet — card, icons, titles, controls, and text together — is magnified by roughly 1.3x around its center. Because it is a photographic enlargement, the text on the sheet comes out VISIBLY LARGER than in the input, and the spacing between the sheet's edge and its content stays exactly proportional to the input sheet — small, like the app's real sheet. After the enlargement the sheet is wider than the phone body, its left and right edges past the phone onto the page background; its top edge stays near where the input sheet's top edge was. If the phone is tilted, the phone keeps its EXACT tilt angle and the sheet tilts at the same angle, as if lifted straight off its screen.
 
-The sheet and its content scale up TOGETHER as one image: the content keeps the same proportional layout and the same small internal margins as in the input, filling the sheet's width like the app's real sheet — never shrunken content centered in extra empty space. The sheet moves as ONE complete piece: everything on it, from its top grab-handle to its bottom-most button, pops out together on the same card. The visible result contains exactly one fully opaque sheet — a flat, single-layer rounded rectangle with all of that content — casting one soft drop shadow onto the phone and the background beneath it. Directly behind the sheet is only the phone and the page background. The image contains exactly one phone; behind and beside the phone, from its edges to the canvas edges, there is only the flat page background.
+The sheet moves as ONE complete piece: everything on it, from its top grab-handle to its bottom-most button, pops out together on the same card, and the popped sheet fully replaces the original — no leftover sheet fragments remain on the phone. The visible result contains exactly one fully opaque sheet — a flat, single-layer rounded rectangle — casting one soft drop shadow onto the phone and the background beneath it. Directly behind the sheet is only the phone and the page background. The image contains exactly one phone; behind and beside the phone, from its edges to the canvas edges, there is only the flat page background.
 
-Every other element — captions, phone, background, all text — stays pixel-identical to the input. Output has the same dimensions and aspect ratio as the input.`;
+Every other element — the marketing captions, the phone, the notepad, the background — stays pixel-identical to the input. Output has the same dimensions and aspect ratio as the input.`;
 
 const MODES = {
   enhance: DEFAULT_PROMPT,
